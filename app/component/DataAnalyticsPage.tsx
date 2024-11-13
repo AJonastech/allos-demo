@@ -632,7 +632,7 @@ const applyNaNRemoval = () => {
                                             <li>Custom bins: Define specific boundary values</li>
                                         </ul>
                                     </li>
-                                    <li>Click "Apply Discretization" to transform the data</li>
+                                    <li>Click &quot;Apply Discretization&quot; to transform the data</li>
                                 </ol>
                             </div>
 
