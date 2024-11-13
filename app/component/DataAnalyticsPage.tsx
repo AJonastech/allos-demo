@@ -197,9 +197,9 @@ const applyNaNRemoval = () => {
                         className="hidden"
                         onChange={handleFileUpload}
                     />
-                    <Button onClick={downloadCSV}>Download CSV</Button>
-                    <Button onClick={() => setIsNaNModalOpen(true)}>Remove NaNs</Button>
-                    <Button onClick={() => setIsDiscretizeModalOpen(true)}>Discretize Columns</Button>
+                    <Button disabled={data.length===0} onClick={downloadCSV}>Download CSV</Button>
+                    <Button disabled={data.length===0} onClick={() => setIsNaNModalOpen(true)}>Remove NaNs</Button>
+                    <Button disabled={data.length===0} onClick={() => setIsDiscretizeModalOpen(true)}>Discretize Columns</Button>
                 </div>
                 <div className="flex items-center space-x-2">
                     <Button
