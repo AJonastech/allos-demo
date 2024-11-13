@@ -69,7 +69,7 @@ const [operationSettings, setOperationSettings] = useState<{
 });
 const [isRelabelModalOpen, setIsRelabelModalOpen] = useState(false);
 const [selectedColumnsForRelabel, setSelectedColumnsForRelabel] = useState<string[]>([]);
-const [relabelMappings, setRelabelMappings] = useState<Record<string, { 
+const [relabelMappings, setRelabelMappings] = useState<Record<string, {
     uniqueValues: string[],
     newLabels: string,
     hasEmptyCells?: boolean
@@ -111,7 +111,7 @@ const [relabelMappings, setRelabelMappings] = useState<Record<string, {
         return 'continuous';
     };
 
-    
+
 
 
     const getColumnStats = (columnIndex: number): ColumnStats => {
@@ -140,19 +140,19 @@ const [relabelMappings, setRelabelMappings] = useState<Record<string, {
 
 
 
-const handleNaNRemoval = () => {
-    const allUniqueValues = new Set<string>();
-    selectedColumnsForNaN.forEach(column => {
-        const columnIndex = columns.indexOf(column);
-        const values = data.map(row => {
-            const value = row[columnIndex];
-            // Convert potential number strings to actual numbers for comparison
-            return isNaN(Number(value)) ? value : Number(value).toString();
-        });
-        values.forEach(value => allUniqueValues.add(value));
-    });
-    setUniqueValues(allUniqueValues);
-};
+// const handleNaNRemoval = () => {
+//     const allUniqueValues = new Set<string>();
+//     selectedColumnsForNaN.forEach(column => {
+//         const columnIndex = columns.indexOf(column);
+//         const values = data.map(row => {
+//             const value = row[columnIndex];
+//             // Convert potential number strings to actual numbers for comparison
+//             return isNaN(Number(value)) ? value : Number(value).toString();
+//         });
+//         values.forEach(value => allUniqueValues.add(value));
+//     });
+//     setUniqueValues(allUniqueValues);
+// };
 
 const applyNaNRemoval = () => {
     const newData = data.filter(row => {
@@ -160,7 +160,7 @@ const applyNaNRemoval = () => {
             const columnIndex = columns.indexOf(column);
             const value = row[columnIndex];
             // Convert value to string for consistent comparison
-            const normalizedValue = value === undefined || value === null || value === '' ? 'NaN' : 
+            const normalizedValue = value === undefined || value === null || value === '' ? 'NaN' :
                 isNaN(Number(value)) ? value : Number(value).toString();
             return selectedValues.has(normalizedValue);
         });
@@ -172,7 +172,7 @@ const applyNaNRemoval = () => {
     setSelectedColumnsForNaN([]);
     setUniqueValues(new Set());
 };
-  
+
     const handleColumnClick = (columnIndex: number) => {
         setSelectedColumn(getColumnStats(columnIndex));
         setIsColumnDialogOpen(true);
@@ -202,7 +202,7 @@ const applyNaNRemoval = () => {
         } else if (settings.type === 'count') {
             const binCount = settings.value as number;
             const sortedValues = [...values].sort((a, b) => a - b);
-            bins = Array.from({ length: binCount + 1 }, (_, i) => 
+            bins = Array.from({ length: binCount + 1 }, (_, i) =>
                 sortedValues[Math.floor(i * sortedValues.length / binCount)]);
         } else {
             bins = settings.value as number[];
@@ -220,11 +220,11 @@ const applyNaNRemoval = () => {
     const applySingleColumnOperation = () => {
         const columnIndex = columns.indexOf(selectedColumnsForOperations[0]);
         const { operation, operationNumber, prefactor } = operationSettings.singleColumn;
-    
+
         const newData = data.map(row => {
             const value = parseFloat(row[columnIndex]);
             if (isNaN(value)) return row;
-    
+
             let result = value;
             switch (operation) {
                 case 'power':
@@ -238,24 +238,24 @@ const applyNaNRemoval = () => {
                     break;
             }
             result *= prefactor;
-    
+
             return [...row.slice(0, columnIndex), result.toString(), ...row.slice(columnIndex + 1)];
         });
-    
+
         setData(newData);
         setIsColumnOperationsOpen(false);
     };
-    
+
     const applyMultiColumnOperation = () => {
         const columnIndices = selectedColumnsForOperations.map(col => columns.indexOf(col));
         const { prefactors, operations } = operationSettings.multiColumn;
-    
+
         const newData = data.map(row => {
             let result = parseFloat(row[columnIndices[0]]) * (prefactors[selectedColumnsForOperations[0]] || 1);
-    
+
             for (let i = 1; i < columnIndices.length; i++) {
                 const currentValue = parseFloat(row[columnIndices[i]]) * (prefactors[selectedColumnsForOperations[i]] || 1);
-                
+
                 switch (operations[i - 1]) {
                     case '+':
                         result += currentValue;
@@ -271,12 +271,12 @@ const applyNaNRemoval = () => {
                         break;
                 }
             }
-    
-            return [...row.slice(0, columnIndices[0]), 
-                    isNaN(result) ? 'NaN' : result.toString(), 
+
+            return [...row.slice(0, columnIndices[0]),
+                    isNaN(result) ? 'NaN' : result.toString(),
                     ...row.slice(columnIndices[0] + 1)];
         });
-    
+
         setData(newData);
         setIsColumnOperationsOpen(false);
     };
@@ -285,30 +285,30 @@ const applyNaNRemoval = () => {
         const columnIndex = columns.indexOf(columnName);
         return [...new Set(data.map(row => row[columnIndex]))];
     };
-    
+
     const handleRelabelUpdate = () => {
         let newData = [...data];
-        
+
         selectedColumnsForRelabel.forEach(column => {
             const columnIndex = columns.indexOf(column);
             const mapping = relabelMappings[column];
-            
+
             if (!mapping || !mapping.newLabels) return;
-            
+
             const labels = mapping.newLabels.split(',').map(l => l.trim());
             if (labels.length !== mapping.uniqueValues.length) return;
-            
+
             const valueToLabel = Object.fromEntries(
                 mapping.uniqueValues.map((value, i) => [value, labels[i]])
             );
-            
+
             newData = newData.map(row => {
                 const newRow = [...row];
                 newRow[columnIndex] = valueToLabel[row[columnIndex]] || row[columnIndex];
                 return newRow;
             });
         });
-    
+
         setData(newData);
         setIsRelabelModalOpen(false);
         setSelectedColumnsForRelabel([]);
@@ -318,7 +318,7 @@ const applyNaNRemoval = () => {
         <div className="container mx-auto p-6 space-y-6">
             <div className="flex flex-col space-y-4 sm:space-y-6 md:space-y-0 md:flex-row md:justify-between md:items-center">
                 <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:space-x-2">
-                    <Button 
+                    <Button
                         className="w-full sm:w-auto"
                         onClick={() => document.getElementById('fileInput')?.click()}
                     >
@@ -332,48 +332,48 @@ const applyNaNRemoval = () => {
                         className="hidden"
                         onChange={handleFileUpload}
                     />
-                    <Button 
+                    <Button
                         className="w-full sm:w-auto"
-                        disabled={data.length===0} 
+                        disabled={data.length===0}
                         onClick={downloadCSV}
                     >
                         <span className="hidden sm:inline">Download CSV</span>
                         <span className="sm:hidden">Download</span>
                     </Button>
-                    <Button 
+                    <Button
                         className="w-full sm:w-auto"
-                        disabled={data.length===0} 
+                        disabled={data.length===0}
                         onClick={() => setIsNaNModalOpen(true)}
                     >
                         <span className="hidden sm:inline">Remove NaNs</span>
                         <span className="sm:hidden">NaNs</span>
                     </Button>
-                    <Button 
+                    <Button
                         className="w-full sm:w-auto"
-                        disabled={data.length===0}  
+                        disabled={data.length===0}
                         onClick={() => setIsDiscretizeModalOpen(true)}
                     >
                         <span className="hidden sm:inline">Discretize Columns</span>
                         <span className="sm:hidden">Discretize</span>
                     </Button>
-                    <Button 
+                    <Button
                     className="w-full sm:w-auto"
-                    disabled={data.length===0} 
+                    disabled={data.length===0}
                     onClick={() => setIsRelabelModalOpen(true)}
                 >
                     <span className="hidden sm:inline">Relabel Values</span>
                     <span className="sm:hidden">Relabel</span>
                 </Button>
-                <Button 
+                <Button
                     className="w-full sm:w-auto"
-                    disabled={data.length===0} 
+                    disabled={data.length===0}
                     onClick={() => setIsColumnOperationsOpen(true)}
                 >
                     <span className="hidden sm:inline">Column Operations</span>
                     <span className="sm:hidden">Operations</span>
                 </Button>
                 </div>
-               
+
 
                 <div className="flex items-center justify-center space-x-2">
                     <Button
@@ -399,7 +399,7 @@ const applyNaNRemoval = () => {
             </div>
 
 
-         
+
             {data.length === 0 ? (
                 <Card className="flex flex-col items-center justify-center p-12 text-center">
                     <motion.div
@@ -413,7 +413,7 @@ const applyNaNRemoval = () => {
                             viewBox="0 0 24 24"
                             stroke="currentColor"
                         >
-                            <motion.path 
+                            <motion.path
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                                 strokeWidth={1.5}
@@ -430,7 +430,7 @@ const applyNaNRemoval = () => {
                         >
                             <h3 className="text-2xl font-semibold mb-2">No Data to Preview</h3>
                             <p className="text-gray-500 mb-4">Upload a CSV file to get started with your data analysis</p>
-                            <Button 
+                            <Button
                                 variant="outline"
                                 onClick={() => document.getElementById('fileInput')?.click()}
                                 className="hover:bg-blue-50 transition-colors"
@@ -487,14 +487,14 @@ const applyNaNRemoval = () => {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                 >
-                    <motion.div 
+                    <motion.div
                         className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                         onClick={() => setIsColumnDialogOpen(false)}
                     />
-                    <motion.div 
+                    <motion.div
                         className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[90vh] overflow-hidden"
                         initial={{ scale: 0.95, opacity: 0 }}
                         animate={{ scale: 1, opacity: 1 }}
@@ -503,7 +503,7 @@ const applyNaNRemoval = () => {
                     >
                         <div className="p-6 border-b">
                             <h2 className="text-xl font-semibold">Column: {selectedColumn?.name}</h2>
-                            <button 
+                            <button
                                 onClick={() => setIsColumnDialogOpen(false)}
                                 className="absolute right-4 top-4 p-2 hover:bg-gray-100 rounded-full"
                             >
@@ -550,13 +550,13 @@ const applyNaNRemoval = () => {
 
                 {isNaNModalOpen && (
                     <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
-                        <motion.div 
+                        <motion.div
                             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                             onClick={() => setIsNaNModalOpen(false)}
                         />
                         <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
                             <h2 className="text-xl font-semibold mb-4">Remove Values</h2>
-                            
+
                             {/* Added info panel */}
                             <div className="bg-blue-50 p-4 rounded-lg mb-6">
                                 <h4 className="font-medium text-blue-800 mb-2">How to use:</h4>
@@ -577,25 +577,25 @@ const applyNaNRemoval = () => {
                                                 key={id}
                                                 variant={selectedColumnsForNaN.includes(column) ? "default" : "outline"}
                                                 onClick={() => {
-                                                    setSelectedColumnsForNaN(prev => 
-                                                        prev.includes(column) 
+                                                    setSelectedColumnsForNaN(prev =>
+                                                        prev.includes(column)
                                                             ? prev.filter(c => c !== column)
                                                             : [...prev, column]
                                                     );
                                                 }}
                                             >
                                                 {column}
-                                                {selectedColumnsForNaN.includes(column) && 
+                                                {selectedColumnsForNaN.includes(column) &&
                                                     <span className="ml-1 text-green-500">✓</span>
                                                 }
                                             </Button>
                                         ))}
                                     </div>
                                 </div>
-                                
+
                                 {selectedColumnsForNaN.length > 0 ? (
                                     <div>
-                                        <Button 
+                                        <Button
                                             onClick={() => {
                                                 const allUniqueValues = new Set<string>();
                                                 selectedColumnsForNaN.forEach(column => {
@@ -653,7 +653,7 @@ const applyNaNRemoval = () => {
                                                         </div>
                                                     ))}
                                                 </div>
-                                                
+
                                                 {selectedValues.size > 0 && (
                                                     <div className="mt-4">
                                                         <div className="bg-yellow-50 p-3 rounded-lg mb-4">
@@ -662,7 +662,7 @@ const applyNaNRemoval = () => {
                                                                 This action cannot be undone.
                                                             </p>
                                                         </div>
-                                                        <Button 
+                                                        <Button
                                                             onClick={applyNaNRemoval}
                                                             className="w-full justify-center"
                                                         >
@@ -685,13 +685,13 @@ const applyNaNRemoval = () => {
 
                 {isDiscretizeModalOpen && (
                     <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
-                        <motion.div 
+                        <motion.div
                             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                             onClick={() => setIsDiscretizeModalOpen(false)}
                         />
                         <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
                             <h2 className="text-xl font-semibold mb-4">Discretize Columns</h2>
-                            
+
                             {/* Info Panel */}
                             <div className="bg-blue-50 p-4 rounded-lg mb-6">
                                 <h4 className="font-medium text-blue-800 mb-2">How to discretize:</h4>
@@ -725,15 +725,15 @@ const applyNaNRemoval = () => {
                                                         ${type === 'index' && 'text-red-500'}
                                                     `}
                                                     onClick={() => {
-                                                        setSelectedColumnsForDiscretize(prev => 
-                                                            prev.includes(column) 
+                                                        setSelectedColumnsForDiscretize(prev =>
+                                                            prev.includes(column)
                                                                 ? prev.filter(c => c !== column)
                                                                 : [...prev, column]
                                                         );
                                                     }}
                                                 >
                                                     {column}
-                                                    {selectedColumnsForDiscretize.includes(column) && 
+                                                    {selectedColumnsForDiscretize.includes(column) &&
                                                         <span className="ml-1 text-green-500">✓</span>
                                                     }
                                                     <span className="invisible group-hover:visible absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs whitespace-nowrap">
@@ -784,9 +784,9 @@ const applyNaNRemoval = () => {
                                                             placeholder="e.g., 0,10,20,30,40"
                                                             onChange={(e) => setBinSettings(prev => ({
                                                                 ...prev,
-                                                                [column]: { 
-                                                                    type: 'custom', 
-                                                                    value: e.target.value.split(',').map(Number) 
+                                                                [column]: {
+                                                                    type: 'custom',
+                                                                    value: e.target.value.split(',').map(Number)
                                                                 }
                                                             }))}
                                                         />
@@ -798,7 +798,7 @@ const applyNaNRemoval = () => {
                                             </div>
                                         ))}
 
-                                        <Button 
+                                        <Button
                                             className="w-full"
                                             onClick={() => {
                                                 selectedColumnsForDiscretize.forEach(column => {
@@ -819,20 +819,20 @@ const applyNaNRemoval = () => {
                 )}
 {isRelabelModalOpen && (
     <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
-        <motion.div 
+        <motion.div
             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
             onClick={() => setIsRelabelModalOpen(false)}
         />
         <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-semibold mb-4">Relabel/Group Values</h2>
-            
+
             <div className="bg-blue-50 p-4 rounded-lg mb-6">
                 <h4 className="font-medium text-blue-800 mb-2">How to relabel values:</h4>
                 <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
                     <li>Select one or more columns to relabel</li>
-                    <li>For each column, you'll see its unique values</li>
+                    <li>For each column, you&apos;ll see its unique values</li>
                     <li>Enter new labels (comma-separated) in the same order</li>
-                    <li>Click "Apply Relabeling" to update the values</li>
+                    <li>Click &apos;Apply Relabeling&apos; to update the values</li>
                 </ol>
             </div>
 
@@ -848,7 +848,7 @@ const applyNaNRemoval = () => {
                                     if (selectedColumnsForRelabel.includes(column)) {
                                         setSelectedColumnsForRelabel(prev => prev.filter(c => c !== column));
                                         setRelabelMappings(prev => {
-                                            const { [column]: _, ...rest } = prev;
+                                            const { [column]: _unused, ...rest } = prev;
                                             return rest;
                                         });
                                     } else {
@@ -875,13 +875,13 @@ const applyNaNRemoval = () => {
                 {selectedColumnsForRelabel.map(column => {
                     const mapping = relabelMappings[column];
                     const currentLabels = mapping?.newLabels?.split(',').map(l => l.trim()) || [];
-                    const isLabelCountMismatch = currentLabels.length > 0 && 
+                    const isLabelCountMismatch = currentLabels.length > 0 &&
                         currentLabels.length !== mapping?.uniqueValues.length;
 
                     return (
                         <div key={column} className="border p-4 rounded-lg">
                             <h3 className="font-medium mb-4">{column}</h3>
-                            
+
                             {mapping?.hasEmptyCells && (
                                 <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
                                     <div className="flex">
@@ -949,7 +949,7 @@ const applyNaNRemoval = () => {
                 })}
 
                 {selectedColumnsForRelabel.length > 0 && (
-                    <Button 
+                    <Button
                         className="w-full"
                         onClick={handleRelabelUpdate}
                         disabled={Object.values(relabelMappings).some(mapping => {
@@ -966,13 +966,13 @@ const applyNaNRemoval = () => {
 )}
                 {isColumnOperationsOpen && (
                     <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
-                        <motion.div 
+                        <motion.div
                             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                             onClick={() => setIsColumnOperationsOpen(false)}
                         />
                         <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
                             <h2 className="text-xl font-semibold mb-4">Column Operations</h2>
-                            
+
                             <div className="space-y-6">
                                 <div>
                                     <h3 className="font-medium mb-2">Select Columns to Transform:</h3>
@@ -983,10 +983,10 @@ const applyNaNRemoval = () => {
                                                 variant={selectedColumnsForOperations.includes(column) ? "default" : "outline"}
                                                 onClick={() => {
                                                     setSelectedColumnsForOperations(prev => {
-                                                        const newColumns = prev.includes(column) 
+                                                        const newColumns = prev.includes(column)
                                                             ? prev.filter(c => c !== column)
                                                             : [...prev, column];
-                                                        
+
                                                         // Initialize operations array when columns change
                                                         setOperationSettings(prevSettings => ({
                                                             ...prevSettings,
@@ -995,7 +995,7 @@ const applyNaNRemoval = () => {
                                                                 operations: new Array(newColumns.length - 1).fill('+')
                                                             }
                                                         }));
-                                                        
+
                                                         return newColumns;
                                                     });
                                                 }}
@@ -1011,8 +1011,8 @@ const applyNaNRemoval = () => {
                                         <h3 className="font-medium">Single Column Operation</h3>
                                         <div className="bg-blue-50 p-4 rounded-lg mb-4">
                                             <p className="text-sm text-blue-800">
-                                                Current Formula: {selectedColumnsForOperations[0]} → 
-                                                {operationSettings.singleColumn.prefactor} × 
+                                                Current Formula: {selectedColumnsForOperations[0]} →
+                                                {operationSettings.singleColumn.prefactor} ×
                                                 {operationSettings.singleColumn.operation === 'power' && `(${selectedColumnsForOperations[0]})^${operationSettings.singleColumn.operationNumber}`}
                                                 {operationSettings.singleColumn.operation === 'exponential' && `${operationSettings.singleColumn.operationNumber}^(${selectedColumnsForOperations[0]})`}
                                                 {operationSettings.singleColumn.operation === 'logarithm' && `log_{${operationSettings.singleColumn.operationNumber}}(${selectedColumnsForOperations[0]})`}
@@ -1022,7 +1022,7 @@ const applyNaNRemoval = () => {
                                         <div className="grid grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-sm font-medium mb-1">Operation Type</label>
-                                                <select 
+                                                <select
                                                     className="w-full p-2 border rounded"
                                                     value={operationSettings.singleColumn.operation}
                                                     onChange={(e) => setOperationSettings(prev => ({
@@ -1107,7 +1107,7 @@ const applyNaNRemoval = () => {
                                                     }))}
                                                 />
                                                 {index < selectedColumnsForOperations.length - 1 && (
-                                                    <select 
+                                                    <select
                                                         className="border rounded p-2"
                                                         value={operationSettings.multiColumn.operations[index] || '+'}
                                                         onChange={(e) => setOperationSettings(prev => ({
