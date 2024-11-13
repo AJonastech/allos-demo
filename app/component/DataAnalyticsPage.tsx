@@ -452,7 +452,7 @@ const applyNaNRemoval = () => {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
-                                        <TableHead className="bg-slate-50 sticky left-0 z-20">ID</TableHead>
+                                        <TableHead className="bg-slate-50 sticky left-0 z-20">ALLOS ID</TableHead>
                                         {columns.map((column, index) => (
                                             <TableHead
                                                 key={index}
