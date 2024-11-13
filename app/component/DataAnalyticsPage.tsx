@@ -67,6 +67,13 @@ const [operationSettings, setOperationSettings] = useState<{
         operations: []
     }
 });
+const [isRelabelModalOpen, setIsRelabelModalOpen] = useState(false);
+const [selectedColumnsForRelabel, setSelectedColumnsForRelabel] = useState<string[]>([]);
+const [relabelMappings, setRelabelMappings] = useState<Record<string, { 
+    uniqueValues: string[],
+    newLabels: string,
+    hasEmptyCells?: boolean
+}>>({});
 
     const itemsPerPage = 50;
 
@@ -76,7 +83,9 @@ const [operationSettings, setOperationSettings] = useState<{
             const reader = new FileReader();
             reader.onload = (e) => {
                 const text = e.target?.result as string;
-                const rows = text.split('\n').map(row => row.split(','));
+                const rows = text.split('\n')
+                    .filter(line => line.trim() !== '') // Remove empty lines
+                    .map(row => row.split(','));
                 setColumns(rows[0]);
                 setData(rows.slice(1));
             };
@@ -150,8 +159,9 @@ const applyNaNRemoval = () => {
         return !selectedColumnsForNaN.some(column => {
             const columnIndex = columns.indexOf(column);
             const value = row[columnIndex];
-            // Convert value to number if possible for comparison
-            const normalizedValue = isNaN(Number(value)) ? value : Number(value).toString();
+            // Convert value to string for consistent comparison
+            const normalizedValue = value === undefined || value === null || value === '' ? 'NaN' : 
+                isNaN(Number(value)) ? value : Number(value).toString();
             return selectedValues.has(normalizedValue);
         });
     });
@@ -270,6 +280,40 @@ const applyNaNRemoval = () => {
         setData(newData);
         setIsColumnOperationsOpen(false);
     };
+
+    const getUniqueValuesForColumn = (columnName: string) => {
+        const columnIndex = columns.indexOf(columnName);
+        return [...new Set(data.map(row => row[columnIndex]))];
+    };
+    
+    const handleRelabelUpdate = () => {
+        let newData = [...data];
+        
+        selectedColumnsForRelabel.forEach(column => {
+            const columnIndex = columns.indexOf(column);
+            const mapping = relabelMappings[column];
+            
+            if (!mapping || !mapping.newLabels) return;
+            
+            const labels = mapping.newLabels.split(',').map(l => l.trim());
+            if (labels.length !== mapping.uniqueValues.length) return;
+            
+            const valueToLabel = Object.fromEntries(
+                mapping.uniqueValues.map((value, i) => [value, labels[i]])
+            );
+            
+            newData = newData.map(row => {
+                const newRow = [...row];
+                newRow[columnIndex] = valueToLabel[row[columnIndex]] || row[columnIndex];
+                return newRow;
+            });
+        });
+    
+        setData(newData);
+        setIsRelabelModalOpen(false);
+        setSelectedColumnsForRelabel([]);
+        setRelabelMappings({});
+    };
     return (
         <div className="container mx-auto p-6 space-y-6">
             <div className="flex flex-col space-y-4 sm:space-y-6 md:space-y-0 md:flex-row md:justify-between md:items-center">
@@ -312,8 +356,14 @@ const applyNaNRemoval = () => {
                         <span className="hidden sm:inline">Discretize Columns</span>
                         <span className="sm:hidden">Discretize</span>
                     </Button>
-                </div>
-
+                    <Button 
+                    className="w-full sm:w-auto"
+                    disabled={data.length===0} 
+                    onClick={() => setIsRelabelModalOpen(true)}
+                >
+                    <span className="hidden sm:inline">Relabel Values</span>
+                    <span className="sm:hidden">Relabel</span>
+                </Button>
                 <Button 
                     className="w-full sm:w-auto"
                     disabled={data.length===0} 
@@ -322,6 +372,8 @@ const applyNaNRemoval = () => {
                     <span className="hidden sm:inline">Column Operations</span>
                     <span className="sm:hidden">Operations</span>
                 </Button>
+                </div>
+               
 
                 <div className="flex items-center justify-center space-x-2">
                     <Button
@@ -398,6 +450,7 @@ const applyNaNRemoval = () => {
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead className="bg-slate-50">ID</TableHead>
                                 {columns.map((column, index) => (
                                     <TableHead
                                         key={index}
@@ -414,6 +467,7 @@ const applyNaNRemoval = () => {
                                 .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
                                 .map((row, rowIndex) => (
                                     <TableRow key={rowIndex}>
+                                        <TableCell className="bg-slate-50">{(currentPage - 1) * itemsPerPage + rowIndex + 1}</TableCell>
                                         {row.map((cell: string, cellIndex: number) => (
                                             <TableCell key={cellIndex}>{cell}</TableCell>
                                         ))}
@@ -518,9 +572,9 @@ const applyNaNRemoval = () => {
                                 <div>
                                     <h3 className="font-medium mb-2">Select Columns to Clean:</h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {columns.map(column => (
+                                        {columns.map((column, id) => (
                                             <Button
-                                                key={column}
+                                                key={id}
                                                 variant={selectedColumnsForNaN.includes(column) ? "default" : "outline"}
                                                 onClick={() => {
                                                     setSelectedColumnsForNaN(prev => 
@@ -542,7 +596,25 @@ const applyNaNRemoval = () => {
                                 {selectedColumnsForNaN.length > 0 ? (
                                     <div>
                                         <Button 
-                                            onClick={handleNaNRemoval}
+                                            onClick={() => {
+                                                const allUniqueValues = new Set<string>();
+                                                selectedColumnsForNaN.forEach(column => {
+                                                    const columnIndex = columns.indexOf(column);
+                                                    const values = data.map(row => {
+                                                        const value = row[columnIndex];
+                                                        // Handle empty cells, undefined, or null
+                                                        if (!value || value.trim() === '') {
+                                                            return 'NaN';
+                                                        }
+                                                        // Try to convert to number if possible
+                                                        const numValue = Number(value);
+                                                        // If it's not a valid number, return the original string value
+                                                        return isNaN(numValue) ? value : numValue.toString();
+                                                    });
+                                                    values.forEach(value => allUniqueValues.add(value));
+                                                });
+                                                setUniqueValues(allUniqueValues);
+                                            }}
                                             className="w-full justify-center"
                                         >
                                             <span className="mr-2">🔍</span>
@@ -576,7 +648,7 @@ const applyNaNRemoval = () => {
                                                                 className="h-4 w-4 rounded border-gray-300"
                                                             />
                                                             <label htmlFor={`value-${value}`} className="flex-grow cursor-pointer">
-                                                                {value || '<empty>'}
+                                                                {value === 'NaN' ? 'NaN (empty or invalid values)' : value}
                                                             </label>
                                                         </div>
                                                     ))}
@@ -745,7 +817,153 @@ const applyNaNRemoval = () => {
                         </motion.div>
                     </motion.div>
                 )}
+{isRelabelModalOpen && (
+    <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
+        <motion.div 
+            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+            onClick={() => setIsRelabelModalOpen(false)}
+        />
+        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold mb-4">Relabel/Group Values</h2>
+            
+            <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                <h4 className="font-medium text-blue-800 mb-2">How to relabel values:</h4>
+                <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
+                    <li>Select one or more columns to relabel</li>
+                    <li>For each column, you'll see its unique values</li>
+                    <li>Enter new labels (comma-separated) in the same order</li>
+                    <li>Click "Apply Relabeling" to update the values</li>
+                </ol>
+            </div>
 
+            <div className="space-y-6">
+                <div>
+                    <h3 className="font-medium mb-2">Select Columns:</h3>
+                    <div className="flex flex-wrap gap-2">
+                        {columns.map(column => (
+                            <Button
+                                key={column}
+                                variant={selectedColumnsForRelabel.includes(column) ? "default" : "outline"}
+                                onClick={() => {
+                                    if (selectedColumnsForRelabel.includes(column)) {
+                                        setSelectedColumnsForRelabel(prev => prev.filter(c => c !== column));
+                                        setRelabelMappings(prev => {
+                                            const { [column]: _, ...rest } = prev;
+                                            return rest;
+                                        });
+                                    } else {
+                                        const uniqueValues = getUniqueValuesForColumn(column);
+                                        const hasEmptyCells = uniqueValues.some(v => !v || v.trim() === '');
+                                        setSelectedColumnsForRelabel(prev => [...prev, column]);
+                                        setRelabelMappings(prev => ({
+                                            ...prev,
+                                            [column]: {
+                                                uniqueValues,
+                                                newLabels: '',
+                                                hasEmptyCells
+                                            }
+                                        }));
+                                    }
+                                }}
+                            >
+                                {column}
+                            </Button>
+                        ))}
+                    </div>
+                </div>
+
+                {selectedColumnsForRelabel.map(column => {
+                    const mapping = relabelMappings[column];
+                    const currentLabels = mapping?.newLabels?.split(',').map(l => l.trim()) || [];
+                    const isLabelCountMismatch = currentLabels.length > 0 && 
+                        currentLabels.length !== mapping?.uniqueValues.length;
+
+                    return (
+                        <div key={column} className="border p-4 rounded-lg">
+                            <h3 className="font-medium mb-4">{column}</h3>
+                            
+                            {mapping?.hasEmptyCells && (
+                                <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
+                                    <div className="flex">
+                                        <div className="flex-shrink-0">
+                                            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                            </svg>
+                                        </div>
+                                        <div className="ml-3">
+                                            <p className="text-sm text-yellow-700">
+                                                This column contains empty cells. They will be included in the relabeling process.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">
+                                        Current Unique Values:
+                                    </label>
+                                    <div className="bg-gray-50 p-2 rounded">
+                                        {mapping?.uniqueValues.join(', ')}
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium mb-2">
+                                        New Labels (comma-separated):
+                                    </label>
+                                    <Input
+                                        placeholder="Enter new labels (e.g., 0, 0, 1, 2, 0, 2, 2)"
+                                        value={mapping?.newLabels || ''}
+                                        className={isLabelCountMismatch ? 'border-red-500' : ''}
+                                        onChange={(e) => setRelabelMappings(prev => ({
+                                            ...prev,
+                                            [column]: {
+                                                ...prev[column],
+                                                newLabels: e.target.value
+                                            }
+                                        }))}
+                                    />
+                                    <div className="mt-1 text-sm">
+                                        {isLabelCountMismatch ? (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: -10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="text-red-500 flex items-center gap-1"
+                                            >
+                                                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                </svg>
+                                                Please enter exactly {mapping?.uniqueValues.length} labels (currently have {currentLabels.length})
+                                            </motion.div>
+                                        ) : (
+                                            <span className="text-gray-500">
+                                                Enter {mapping?.uniqueValues.length} comma-separated values
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+
+                {selectedColumnsForRelabel.length > 0 && (
+                    <Button 
+                        className="w-full"
+                        onClick={handleRelabelUpdate}
+                        disabled={Object.values(relabelMappings).some(mapping => {
+                            const labelCount = mapping.newLabels.split(',').filter(l => l.trim()).length;
+                            return labelCount !== mapping.uniqueValues.length;
+                        })}
+                    >
+                        Apply Relabeling
+                    </Button>
+                )}
+            </div>
+        </motion.div>
+    </motion.div>
+)}
                 {isColumnOperationsOpen && (
                     <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
                         <motion.div 
@@ -764,11 +982,22 @@ const applyNaNRemoval = () => {
                                                 key={column}
                                                 variant={selectedColumnsForOperations.includes(column) ? "default" : "outline"}
                                                 onClick={() => {
-                                                    setSelectedColumnsForOperations(prev => 
-                                                        prev.includes(column) 
+                                                    setSelectedColumnsForOperations(prev => {
+                                                        const newColumns = prev.includes(column) 
                                                             ? prev.filter(c => c !== column)
-                                                            : [...prev, column]
-                                                    );
+                                                            : [...prev, column];
+                                                        
+                                                        // Initialize operations array when columns change
+                                                        setOperationSettings(prevSettings => ({
+                                                            ...prevSettings,
+                                                            multiColumn: {
+                                                                ...prevSettings.multiColumn,
+                                                                operations: new Array(newColumns.length - 1).fill('+')
+                                                            }
+                                                        }));
+                                                        
+                                                        return newColumns;
+                                                    });
                                                 }}
                                             >
                                                 {column}
@@ -938,6 +1167,11 @@ const applyNaNRemoval = () => {
         </div>
     );
 };
+
+
+
+
+
 
 
 
