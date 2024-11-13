@@ -28,7 +28,7 @@ interface ColumnStats {
 }
 
 const DataAnalyticsPage = () => {
-    const [data, setData] = useState<any[]>([]);
+    const [data, setData] = useState<string[][]>([]);
     const [columns, setColumns] = useState<string[]>([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedColumn, setSelectedColumn] = useState<ColumnStats | null>(null);
@@ -183,7 +183,6 @@ const applyNaNRemoval = () => {
 
         setData(newData);
     };
-isNaNModalOpen && console.log(columns)
     return (
         <div className="container mx-auto p-6 space-y-6">
             <div className="flex justify-between items-center">
