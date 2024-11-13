@@ -1,7 +1,6 @@
-import Image from "next/image";
 import DataAnalyticsPage from "./component/DataAnalyticsPage";
 
-export default function Home() {
+export default function page() {
   return (
 
   <DataAnalyticsPage/>

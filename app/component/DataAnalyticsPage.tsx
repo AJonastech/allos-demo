@@ -79,15 +79,7 @@ const DataAnalyticsPage = () => {
         return 'continuous';
     };
 
-    const handleNaNRemoval = () => {
-        const allUniqueValues = new Set<string>();
-        selectedColumnsForNaN.forEach(column => {
-            const columnIndex = columns.indexOf(column);
-            const values = data.map(row => row[columnIndex]);
-            values.forEach(value => allUniqueValues.add(value));
-        });
-        setUniqueValues(allUniqueValues);
-    };
+    
 
 
     const getColumnStats = (columnIndex: number): ColumnStats => {
@@ -113,16 +105,41 @@ const DataAnalyticsPage = () => {
             type
         };
     };
-    const applyNaNRemoval = () => {
-        const newData = data.filter(row => {
-            return !selectedColumnsForNaN.some(column => {
-                const value = row[columns.indexOf(column)];
-                return selectedValues.has(value);
-            });
+
+
+
+const handleNaNRemoval = () => {
+    const allUniqueValues = new Set<string>();
+    selectedColumnsForNaN.forEach(column => {
+        const columnIndex = columns.indexOf(column);
+        const values = data.map(row => {
+            const value = row[columnIndex];
+            // Convert potential number strings to actual numbers for comparison
+            return isNaN(Number(value)) ? value : Number(value).toString();
         });
-        setData(newData);
-        setIsNaNModalOpen(false);
-    };
+        values.forEach(value => allUniqueValues.add(value));
+    });
+    setUniqueValues(allUniqueValues);
+};
+
+const applyNaNRemoval = () => {
+    const newData = data.filter(row => {
+        return !selectedColumnsForNaN.some(column => {
+            const columnIndex = columns.indexOf(column);
+            const value = row[columnIndex];
+            // Convert value to number if possible for comparison
+            const normalizedValue = isNaN(Number(value)) ? value : Number(value).toString();
+            return selectedValues.has(normalizedValue);
+        });
+    });
+    setData(newData);
+    setIsNaNModalOpen(false);
+    // Reset selections
+    setSelectedValues(new Set());
+    setSelectedColumnsForNaN([]);
+    setUniqueValues(new Set());
+};
+  
     const handleColumnClick = (columnIndex: number) => {
         setSelectedColumn(getColumnStats(columnIndex));
         setIsColumnDialogOpen(true);
@@ -166,7 +183,7 @@ const DataAnalyticsPage = () => {
 
         setData(newData);
     };
-
+isNaNModalOpen && console.log(columns)
     return (
         <div className="container mx-auto p-6 space-y-6">
             <div className="flex justify-between items-center">
@@ -317,7 +334,7 @@ const DataAnalyticsPage = () => {
                             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                             onClick={() => setIsNaNModalOpen(false)}
                         />
-                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full"></motion.div>
+                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
                             <h2 className="text-xl font-semibold mb-4">Remove Values</h2>
                             <div className="space-y-4">
                                 <div>
@@ -369,7 +386,7 @@ const DataAnalyticsPage = () => {
                                 )}
                             </div>
                         </motion.div>
-              
+                        </motion.div>
                 )}
 
                 {isDiscretizeModalOpen && (
@@ -378,7 +395,7 @@ const DataAnalyticsPage = () => {
                             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                             onClick={() => setIsDiscretizeModalOpen(false)}
                         />
-                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full"></motion.div>
+                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
                             <h2 className="text-xl font-semibold mb-4">Discretize Columns</h2>
                             <div className="space-y-4"></div>
                                 <div className="flex flex-wrap gap-2">
@@ -456,6 +473,7 @@ const DataAnalyticsPage = () => {
                                     </Button>
                                 )}
                      
+                        </motion.div>
                         </motion.div>
                     
                 )}
