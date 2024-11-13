@@ -446,36 +446,40 @@ const applyNaNRemoval = () => {
                 <CardTitle>Data Preview</CardTitle>
             </CardHeader>
             <CardContent>
-                <ScrollArea className="h-[600px] w-full">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="bg-slate-50">ID</TableHead>
-                                {columns.map((column, index) => (
-                                    <TableHead
-                                        key={index}
-                                        className="cursor-pointer hover:bg-gray-100"
-                                        onClick={() => handleColumnClick(index)}
-                                    >
-                                        {column}
-                                    </TableHead>
-                                ))}
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {data
-                                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                                .map((row, rowIndex) => (
-                                    <TableRow key={rowIndex}>
-                                        <TableCell className="bg-slate-50">{(currentPage - 1) * itemsPerPage + rowIndex + 1}</TableCell>
-                                        {row.map((cell: string, cellIndex: number) => (
-                                            <TableCell key={cellIndex}>{cell}</TableCell>
+                <div className="w-full overflow-auto">
+                    <ScrollArea className="h-[600px] w-full">
+                        <div className="min-w-[800px]"> {/* Minimum width to prevent squishing */}
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="bg-slate-50 sticky left-0 z-20">ID</TableHead>
+                                        {columns.map((column, index) => (
+                                            <TableHead
+                                                key={index}
+                                                className="cursor-pointer hover:bg-gray-100"
+                                                onClick={() => handleColumnClick(index)}
+                                            >
+                                                {column}
+                                            </TableHead>
                                         ))}
                                     </TableRow>
-                                ))}
-                        </TableBody>
-                    </Table>
-                </ScrollArea>
+                                </TableHeader>
+                                <TableBody>
+                                    {data
+                                        .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                        .map((row, rowIndex) => (
+                                            <TableRow key={rowIndex}>
+                                                <TableCell className="bg-slate-50 sticky left-0">{(currentPage - 1) * itemsPerPage + rowIndex + 1}</TableCell>
+                                                {row.map((cell: string, cellIndex: number) => (
+                                                    <TableCell key={cellIndex}>{cell}</TableCell>
+                                                ))}
+                                            </TableRow>
+                                        ))}
+                                </TableBody>
+                            </Table>
+                        </div>
+                    </ScrollArea>
+                </div>
             </CardContent>
         </Card>}
 
@@ -849,6 +853,7 @@ const applyNaNRemoval = () => {
                                         setSelectedColumnsForRelabel(prev => prev.filter(c => c !== column));
                                         setRelabelMappings(prev => {
                                             const { [column]: _unused, ...rest } = prev;
+                                            console.log(_unused)
                                             return rest;
                                         });
                                     } else {
