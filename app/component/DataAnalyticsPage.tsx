@@ -222,41 +222,83 @@ const applyNaNRemoval = () => {
             </div>
 
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Data Preview</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <ScrollArea className="h-[600px] w-full">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    {columns.map((column, index) => (
-                                        <TableHead
-                                            key={index}
-                                            className="cursor-pointer hover:bg-gray-100"
-                                            onClick={() => handleColumnClick(index)}
-                                        >
-                                            {column}
-                                        </TableHead>
-                                    ))}
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {data
-                                    .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
-                                    .map((row, rowIndex) => (
-                                        <TableRow key={rowIndex}>
-                                            {row.map((cell: string, cellIndex: number) => (
-                                                <TableCell key={cellIndex}>{cell}</TableCell>
-                                            ))}
-                                        </TableRow>
-                                    ))}
-                            </TableBody>
-                        </Table>
-                    </ScrollArea>
-                </CardContent>
-            </Card>
+         
+            {data.length === 0 ? (
+                <Card className="flex flex-col items-center justify-center p-12 text-center">
+                    <motion.div
+                        initial={{ scale: 0.8, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        <svg
+                            className="w-32 h-32 text-gray-400 mb-6"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <motion.path 
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={1.5}
+                                d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h10a2 2 0 012 2v14a2 2 0 01-2 2z"
+                                initial={{ pathLength: 0 }}
+                                animate={{ pathLength: 1 }}
+                                transition={{ duration: 2, ease: "easeInOut" }}
+                            />
+                        </svg>
+                        <motion.div
+                            initial={{ y: 20, opacity: 0 }}
+                            animate={{ y: 0, opacity: 1 }}
+                            transition={{ delay: 0.2 }}
+                        >
+                            <h3 className="text-2xl font-semibold mb-2">No Data to Preview</h3>
+                            <p className="text-gray-500 mb-4">Upload a CSV file to get started with your data analysis</p>
+                            <Button 
+                                variant="outline"
+                                onClick={() => document.getElementById('fileInput')?.click()}
+                                className="hover:bg-blue-50 transition-colors"
+                            >
+                                <span className="mr-2">📊</span>
+                                Upload CSV File
+                            </Button>
+                        </motion.div>
+                    </motion.div>
+                </Card>
+            ):    <Card>
+            <CardHeader>
+                <CardTitle>Data Preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <ScrollArea className="h-[600px] w-full">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                {columns.map((column, index) => (
+                                    <TableHead
+                                        key={index}
+                                        className="cursor-pointer hover:bg-gray-100"
+                                        onClick={() => handleColumnClick(index)}
+                                    >
+                                        {column}
+                                    </TableHead>
+                                ))}
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {data
+                                .slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+                                .map((row, rowIndex) => (
+                                    <TableRow key={rowIndex}>
+                                        {row.map((cell: string, cellIndex: number) => (
+                                            <TableCell key={cellIndex}>{cell}</TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))}
+                        </TableBody>
+                    </Table>
+                </ScrollArea>
+            </CardContent>
+        </Card>}
 
             <AnimatePresence>
             {isColumnDialogOpen && (
