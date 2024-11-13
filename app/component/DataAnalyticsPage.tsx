@@ -44,6 +44,29 @@ const DataAnalyticsPage = () => {
         type: 'size' | 'count' | 'custom',
         value: number | number[]
     }>>({});
+    const [isColumnOperationsOpen, setIsColumnOperationsOpen] = useState(false);
+const [selectedColumnsForOperations, setSelectedColumnsForOperations] = useState<string[]>([]);
+const [operationSettings, setOperationSettings] = useState<{
+    singleColumn: {
+        operation: 'power' | 'exponential' | 'logarithm';
+        operationNumber: number;
+        prefactor: number;
+    };
+    multiColumn: {
+        prefactors: Record<string, number>;
+        operations: string[];
+    };
+}>({
+    singleColumn: {
+        operation: 'power',
+        operationNumber: 1,
+        prefactor: 1
+    },
+    multiColumn: {
+        prefactors: {},
+        operations: []
+    }
+});
 
     const itemsPerPage = 50;
 
@@ -183,12 +206,80 @@ const applyNaNRemoval = () => {
 
         setData(newData);
     };
+
+    const applySingleColumnOperation = () => {
+        const columnIndex = columns.indexOf(selectedColumnsForOperations[0]);
+        const { operation, operationNumber, prefactor } = operationSettings.singleColumn;
+    
+        const newData = data.map(row => {
+            const value = parseFloat(row[columnIndex]);
+            if (isNaN(value)) return row;
+    
+            let result = value;
+            switch (operation) {
+                case 'power':
+                    result = Math.pow(value, operationNumber);
+                    break;
+                case 'exponential':
+                    result = Math.pow(operationNumber, value);
+                    break;
+                case 'logarithm':
+                    result = Math.log(value) / Math.log(operationNumber);
+                    break;
+            }
+            result *= prefactor;
+    
+            return [...row.slice(0, columnIndex), result.toString(), ...row.slice(columnIndex + 1)];
+        });
+    
+        setData(newData);
+        setIsColumnOperationsOpen(false);
+    };
+    
+    const applyMultiColumnOperation = () => {
+        const columnIndices = selectedColumnsForOperations.map(col => columns.indexOf(col));
+        const { prefactors, operations } = operationSettings.multiColumn;
+    
+        const newData = data.map(row => {
+            let result = parseFloat(row[columnIndices[0]]) * (prefactors[selectedColumnsForOperations[0]] || 1);
+    
+            for (let i = 1; i < columnIndices.length; i++) {
+                const currentValue = parseFloat(row[columnIndices[i]]) * (prefactors[selectedColumnsForOperations[i]] || 1);
+                
+                switch (operations[i - 1]) {
+                    case '+':
+                        result += currentValue;
+                        break;
+                    case '-':
+                        result -= currentValue;
+                        break;
+                    case '*':
+                        result *= currentValue;
+                        break;
+                    case '/':
+                        result = currentValue !== 0 ? result / currentValue : NaN;
+                        break;
+                }
+            }
+    
+            return [...row.slice(0, columnIndices[0]), 
+                    isNaN(result) ? 'NaN' : result.toString(), 
+                    ...row.slice(columnIndices[0] + 1)];
+        });
+    
+        setData(newData);
+        setIsColumnOperationsOpen(false);
+    };
     return (
         <div className="container mx-auto p-6 space-y-6">
-            <div className="flex justify-between items-center">
-                <div className="space-x-4">
-                    <Button onClick={() => document.getElementById('fileInput')?.click()}>
-                        Upload CSV
+            <div className="flex flex-col space-y-4 sm:space-y-6 md:space-y-0 md:flex-row md:justify-between md:items-center">
+                <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:space-x-2">
+                    <Button 
+                        className="w-full sm:w-auto"
+                        onClick={() => document.getElementById('fileInput')?.click()}
+                    >
+                        <span className="hidden sm:inline">Upload CSV</span>
+                        <span className="sm:hidden">Upload</span>
                     </Button>
                     <input
                         id="fileInput"
@@ -197,28 +288,62 @@ const applyNaNRemoval = () => {
                         className="hidden"
                         onChange={handleFileUpload}
                     />
-                    <Button disabled={data.length===0} onClick={downloadCSV}>Download CSV</Button>
-                    <Button disabled={data.length===0} onClick={() => setIsNaNModalOpen(true)}>Remove NaNs</Button>
-                    <Button disabled={data.length===0} onClick={() => setIsDiscretizeModalOpen(true)}>Discretize Columns</Button>
+                    <Button 
+                        className="w-full sm:w-auto"
+                        disabled={data.length===0} 
+                        onClick={downloadCSV}
+                    >
+                        <span className="hidden sm:inline">Download CSV</span>
+                        <span className="sm:hidden">Download</span>
+                    </Button>
+                    <Button 
+                        className="w-full sm:w-auto"
+                        disabled={data.length===0} 
+                        onClick={() => setIsNaNModalOpen(true)}
+                    >
+                        <span className="hidden sm:inline">Remove NaNs</span>
+                        <span className="sm:hidden">NaNs</span>
+                    </Button>
+                    <Button 
+                        className="w-full sm:w-auto"
+                        disabled={data.length===0}  
+                        onClick={() => setIsDiscretizeModalOpen(true)}
+                    >
+                        <span className="hidden sm:inline">Discretize Columns</span>
+                        <span className="sm:hidden">Discretize</span>
+                    </Button>
                 </div>
-                <div className="flex items-center space-x-2">
+
+                <Button 
+                    className="w-full sm:w-auto"
+                    disabled={data.length===0} 
+                    onClick={() => setIsColumnOperationsOpen(true)}
+                >
+                    <span className="hidden sm:inline">Column Operations</span>
+                    <span className="sm:hidden">Operations</span>
+                </Button>
+
+                <div className="flex items-center justify-center space-x-2">
                     <Button
                         variant="outline"
                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                         disabled={currentPage === 1}
+                        className="px-2 sm:px-4"
                     >
-                        Previous
+                        <span className="hidden sm:inline">Previous</span>
+                        <span className="sm:hidden">←</span>
                     </Button>
-                    <span>Page {currentPage}</span>
+                    <span className="text-sm sm:text-base">Page {currentPage}</span>
                     <Button
                         variant="outline"
                         onClick={() => setCurrentPage(p => p + 1)}
                         disabled={currentPage * itemsPerPage >= data.length}
+                        className="px-2 sm:px-4"
                     >
-                        Next
+                        <span className="hidden sm:inline">Next</span>
+                        <span className="sm:hidden">→</span>
                     </Button>
                 </div>
-            
             </div>
 
 
@@ -518,9 +643,202 @@ const applyNaNRemoval = () => {
                         </motion.div>
                     
                 )}
+
+                {isColumnOperationsOpen && (
+                    <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <motion.div 
+                            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                            onClick={() => setIsColumnOperationsOpen(false)}
+                        />
+                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
+                            <h2 className="text-xl font-semibold mb-4">Column Operations</h2>
+                            
+                            <div className="space-y-6">
+                                <div>
+                                    <h3 className="font-medium mb-2">Select Columns to Transform:</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                        {columns.map(column => (
+                                            <Button
+                                                key={column}
+                                                variant={selectedColumnsForOperations.includes(column) ? "default" : "outline"}
+                                                onClick={() => {
+                                                    setSelectedColumnsForOperations(prev => 
+                                                        prev.includes(column) 
+                                                            ? prev.filter(c => c !== column)
+                                                            : [...prev, column]
+                                                    );
+                                                }}
+                                            >
+                                                {column}
+                                            </Button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {selectedColumnsForOperations.length === 1 && (
+                                    <div className="space-y-4 border-t pt-4">
+                                        <h3 className="font-medium">Single Column Operation</h3>
+                                        <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                                            <p className="text-sm text-blue-800">
+                                                Current Formula: {selectedColumnsForOperations[0]} → 
+                                                {operationSettings.singleColumn.prefactor} × 
+                                                {operationSettings.singleColumn.operation === 'power' && `(${selectedColumnsForOperations[0]})^${operationSettings.singleColumn.operationNumber}`}
+                                                {operationSettings.singleColumn.operation === 'exponential' && `${operationSettings.singleColumn.operationNumber}^(${selectedColumnsForOperations[0]})`}
+                                                {operationSettings.singleColumn.operation === 'logarithm' && `log_{${operationSettings.singleColumn.operationNumber}}(${selectedColumnsForOperations[0]})`}
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1">Operation Type</label>
+                                                <select 
+                                                    className="w-full p-2 border rounded"
+                                                    value={operationSettings.singleColumn.operation}
+                                                    onChange={(e) => setOperationSettings(prev => ({
+                                                        ...prev,
+                                                        singleColumn: {
+                                                            ...prev.singleColumn,
+                                                            operation: e.target.value as any
+                                                        }
+                                                    }))}
+                                                >
+                                                    <option value="power">Power (x^n)</option>
+                                                    <option value="exponential">Exponential (n^x)</option>
+                                                    <option value="logarithm">Logarithm (log_n(x))</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-sm font-medium mb-1">Operation Number (n)</label>
+                                                <Input
+                                                    type="number"
+                                                    placeholder="Enter number"
+                                                    value={operationSettings.singleColumn.operationNumber}
+                                                    onChange={(e) => setOperationSettings(prev => ({
+                                                        ...prev,
+                                                        singleColumn: {
+                                                            ...prev.singleColumn,
+                                                            operationNumber: parseFloat(e.target.value)
+                                                        }
+                                                    }))}
+                                                />
+                                            </div>
+
+                                            <div className="col-span-2">
+                                                <label className="block text-sm font-medium mb-1">Prefactor (multiplier)</label>
+                                                <Input
+                                                    type="number"
+                                                    placeholder="Enter prefactor"
+                                                    value={operationSettings.singleColumn.prefactor}
+                                                    onChange={(e) => setOperationSettings(prev => ({
+                                                        ...prev,
+                                                        singleColumn: {
+                                                            ...prev.singleColumn,
+                                                            prefactor: parseFloat(e.target.value)
+                                                        }
+                                                    }))}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <Button className="w-full" onClick={applySingleColumnOperation}>Apply Operation</Button>
+                                    </div>
+                                )}
+
+                                {selectedColumnsForOperations.length > 1 && (
+                                    <div className="space-y-4 border-t pt-4">
+                                        <h3 className="font-medium">Multi-Column Operation</h3>
+                                        <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                                            <p className="text-sm text-blue-800">
+                                                Formula: {selectedColumnsForOperations.map((col, i) => {
+                                                    const prefactor = operationSettings.multiColumn.prefactors[col] || 1;
+                                                    const operation = operationSettings.multiColumn.operations[i - 1];
+                                                    return `${i > 0 ? ` ${operation} ` : ''}${prefactor}×${col}`;
+                                                }).join('')}
+                                            </p>
+                                        </div>
+
+                                        {selectedColumnsForOperations.map((column, index) => (
+                                            <div key={column} className="flex items-center gap-2">
+                                                <span className="min-w-[120px]">{column}</span>
+                                                <Input
+                                                    type="number"
+                                                    placeholder="Prefactor"
+                                                    onChange={(e) => setOperationSettings(prev => ({
+                                                        ...prev,
+                                                        multiColumn: {
+                                                            ...prev.multiColumn,
+                                                            prefactors: {
+                                                                ...prev.multiColumn.prefactors,
+                                                                [column]: parseFloat(e.target.value)
+                                                            }
+                                                        }
+                                                    }))}
+                                                />
+                                                {index < selectedColumnsForOperations.length - 1 && (
+                                                    <select 
+                                                        className="border rounded p-2"
+                                                        value={operationSettings.multiColumn.operations[index] || '+'}
+                                                        onChange={(e) => setOperationSettings(prev => ({
+                                                            ...prev,
+                                                            multiColumn: {
+                                                                ...prev.multiColumn,
+                                                                operations: [
+                                                                    ...prev.multiColumn.operations.slice(0, index),
+                                                                    e.target.value,
+                                                                    ...prev.multiColumn.operations.slice(index + 1)
+                                                                ]
+                                                            }
+                                                        }))}
+                                                    >
+                                                        <option value="+">Add (+)</option>
+                                                        <option value="-">Subtract (-)</option>
+                                                        <option value="*">Multiply (×)</option>
+                                                        <option value="/">Divide (÷)</option>
+                                                    </select>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <Button className="w-full" onClick={applyMultiColumnOperation}>Apply Operations</Button>
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+                <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-white/90 backdrop-blur-sm shadow-lg rounded-full border">
+                    {/* Mobile view - stacked */}
+                    <div className="block sm:hidden px-4 py-2 space-y-1 text-center">
+                        <div className="text-xs text-gray-600">
+                            {itemsPerPage} items/page • Page {currentPage}/{Math.ceil(data.length / itemsPerPage)}
+                        </div>
+                        <div className="text-xs text-gray-600">
+                            Total: {data.length} rows
+                        </div>
+                    </div>
+
+                    {/* Desktop view - horizontal */}
+                    <div className="hidden sm:flex items-center space-x-4 px-6 py-2">
+                        <span className="text-sm text-gray-600">
+                            {itemsPerPage} items per page
+                        </span>
+                        <div className="h-4 w-px bg-gray-300" />
+                        <span className="text-sm text-gray-600">
+                            Page {currentPage} of {Math.ceil(data.length / itemsPerPage)}
+                        </span>
+                        <div className="h-4 w-px bg-gray-300" />
+                        <span className="text-sm text-gray-600">
+                            Total rows: {data.length}
+                        </span>
+                    </div>
+                </div>
             </AnimatePresence>
         </div>
     );
 };
+
+
+
+
 
 export default DataAnalyticsPage;
