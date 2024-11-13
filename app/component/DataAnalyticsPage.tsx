@@ -508,9 +508,9 @@ const applyNaNRemoval = () => {
                                 <h4 className="font-medium text-blue-800 mb-2">How to use:</h4>
                                 <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
                                     <li>First, select one or more columns you want to clean</li>
-                                    <li>Click "Show Unique Values" to see all values in selected columns</li>
+                                    <li>Click &quot;Show Unique Values&quot; to see all values in selected columns</li>
                                     <li>Check the boxes next to values you want to remove</li>
-                                    <li>Click "Apply Removal" to remove rows containing selected values</li>
+                                    <li>Click &quot;Apply Removal&quot; to remove rows containing selected values</li>
                                 </ol>
                             </div>
 
