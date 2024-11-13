@@ -698,7 +698,7 @@ const applyNaNRemoval = () => {
                                                         ...prev,
                                                         singleColumn: {
                                                             ...prev.singleColumn,
-                                                            operation: e.target.value as any
+                                                            operation: e.target.value as 'power' | 'exponential' | 'logarithm'
                                                         }
                                                     }))}
                                                 >
