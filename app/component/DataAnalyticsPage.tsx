@@ -844,9 +844,9 @@ const applyNaNRemoval = () => {
                 <div>
                     <h3 className="font-medium mb-2">Select Columns:</h3>
                     <div className="flex flex-wrap gap-2">
-                        {columns.map(column => (
+                        {columns.map((column, index) => (
                             <Button
-                                key={column}
+                                key={`relabel-${index}`}
                                 variant={selectedColumnsForRelabel.includes(column) ? "default" : "outline"}
                                 onClick={() => {
                                     if (selectedColumnsForRelabel.includes(column)) {
@@ -877,14 +877,14 @@ const applyNaNRemoval = () => {
                     </div>
                 </div>
 
-                {selectedColumnsForRelabel.map(column => {
+                {selectedColumnsForRelabel.map((column, id) => {
                     const mapping = relabelMappings[column];
                     const currentLabels = mapping?.newLabels?.split(',').map(l => l.trim()) || [];
                     const isLabelCountMismatch = currentLabels.length > 0 &&
                         currentLabels.length !== mapping?.uniqueValues.length;
 
                     return (
-                        <div key={column} className="border p-4 rounded-lg">
+                        <div key={`${column}-${id}`} className="border p-4 rounded-lg">
                             <h3 className="font-medium mb-4">{column}</h3>
 
                             {mapping?.hasEmptyCells && (
@@ -982,9 +982,9 @@ const applyNaNRemoval = () => {
                                 <div>
                                     <h3 className="font-medium mb-2">Select Columns to Transform:</h3>
                                     <div className="flex flex-wrap gap-2">
-                                        {columns.map(column => (
+                                        {columns.map((column, id) => (
                                             <Button
-                                                key={column}
+                                                key={id}
                                                 variant={selectedColumnsForOperations.includes(column) ? "default" : "outline"}
                                                 onClick={() => {
                                                     setSelectedColumnsForOperations(prev => {
@@ -997,7 +997,9 @@ const applyNaNRemoval = () => {
                                                             ...prevSettings,
                                                             multiColumn: {
                                                                 ...prevSettings.multiColumn,
-                                                                operations: new Array(newColumns.length - 1).fill('+')
+                                                                operations: newColumns.length > 1 
+                                                                    ? new Array(newColumns.length - 1).fill('+')
+                                                                    : []
                                                             }
                                                         }));
 
