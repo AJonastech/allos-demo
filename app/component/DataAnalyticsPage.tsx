@@ -13,6 +13,7 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import * as XLSX from 'xlsx'
 import {
     Card,
     CardContent,
@@ -20,6 +21,7 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface ColumnStats {
     name: string;
@@ -30,7 +32,7 @@ interface ColumnStats {
 const DataAnalyticsPage = () => {
     const [data, setData] = useState<string[][]>([]);
     const [columns, setColumns] = useState<string[]>([]);
-    const [currentPage, setCurrentPage] = useState(1);
+    const [currentPage, setCurrentPage] = useState<number>(1);
     const [selectedColumn, setSelectedColumn] = useState<ColumnStats | null>(null);
     const [isColumnDialogOpen, setIsColumnDialogOpen] = useState(false);
     const [newColumnName, setNewColumnName] = useState('');
@@ -39,57 +41,76 @@ const DataAnalyticsPage = () => {
     const [selectedColumnsForNaN, setSelectedColumnsForNaN] = useState<string[]>([]);
     const [uniqueValues, setUniqueValues] = useState<Set<string>>(new Set());
     const [selectedValues, setSelectedValues] = useState<Set<string>>(new Set());
+    const [searchTerm, setSearchTerm] = useState<string>('');
     const [selectedColumnsForDiscretize, setSelectedColumnsForDiscretize] = useState<string[]>([]);
     const [binSettings, setBinSettings] = useState<Record<string, {
         type: 'size' | 'count' | 'custom',
         value: number | number[]
     }>>({});
     const [isColumnOperationsOpen, setIsColumnOperationsOpen] = useState(false);
-const [selectedColumnsForOperations, setSelectedColumnsForOperations] = useState<string[]>([]);
-const [operationSettings, setOperationSettings] = useState<{
-    singleColumn: {
-        operation: 'power' | 'exponential' | 'logarithm';
-        operationNumber: number;
-        prefactor: number;
-    };
-    multiColumn: {
-        prefactors: Record<string, number>;
-        operations: string[];
-    };
-}>({
-    singleColumn: {
-        operation: 'power',
-        operationNumber: 1,
-        prefactor: 1
-    },
-    multiColumn: {
-        prefactors: {},
-        operations: []
-    }
-});
-const [isRelabelModalOpen, setIsRelabelModalOpen] = useState(false);
-const [selectedColumnsForRelabel, setSelectedColumnsForRelabel] = useState<string[]>([]);
-const [relabelMappings, setRelabelMappings] = useState<Record<string, {
-    uniqueValues: string[],
-    newLabels: string,
-    hasEmptyCells?: boolean
-}>>({});
+    const [selectedColumnsForOperations, setSelectedColumnsForOperations] = useState<string[]>([]);
+    const [operationSettings, setOperationSettings] = useState<{
+        singleColumn: {
+            operation: 'power' | 'exponential' | 'logarithm';
+            operationNumber: number;
+            prefactor: number;
+        };
+        multiColumn: {
+            prefactors: Record<string, number>;
+            operations: string[];
+        };
+    }>({
+        singleColumn: {
+            operation: 'power',
+            operationNumber: 1,
+            prefactor: 1
+        },
+        multiColumn: {
+            prefactors: {},
+            operations: []
+        }
+    });
+    const [isRelabelModalOpen, setIsRelabelModalOpen] = useState(false);
+    const [selectedColumnsForRelabel, setSelectedColumnsForRelabel] = useState<string[]>([]);
+    const [relabelMappings, setRelabelMappings] = useState<Record<string, {
+        uniqueValues: string[],
+        newLabels: string,
+        hasEmptyCells?: boolean
+    }>>({});
 
     const itemsPerPage = 50;
 
     const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
-        if (file) {
+        if (!file) return;
+
+        const fileExtension = file.name.split('.').pop()?.toLowerCase();
+
+        if (fileExtension === 'csv') {
             const reader = new FileReader();
             reader.onload = (e) => {
                 const text = e.target?.result as string;
                 const rows = text.split('\n')
-                    .filter(line => line.trim() !== '') // Remove empty lines
+                    .filter(line => line.trim() !== '')
                     .map(row => row.split(','));
                 setColumns(rows[0]);
                 setData(rows.slice(1));
             };
             reader.readAsText(file);
+        } else if (fileExtension === 'xlsx' || fileExtension === 'xls') {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as string[][];
+
+                if (jsonData.length > 0) {
+                    setColumns(jsonData[0]);
+                    setData(jsonData.slice(1));
+                }
+            };
+            reader.readAsArrayBuffer(file);
         }
     };
 
@@ -140,38 +161,48 @@ const [relabelMappings, setRelabelMappings] = useState<Record<string, {
 
 
 
-// const handleNaNRemoval = () => {
-//     const allUniqueValues = new Set<string>();
-//     selectedColumnsForNaN.forEach(column => {
-//         const columnIndex = columns.indexOf(column);
-//         const values = data.map(row => {
-//             const value = row[columnIndex];
-//             // Convert potential number strings to actual numbers for comparison
-//             return isNaN(Number(value)) ? value : Number(value).toString();
-//         });
-//         values.forEach(value => allUniqueValues.add(value));
-//     });
-//     setUniqueValues(allUniqueValues);
-// };
+    // const handleNaNRemoval = () => {
+    //     const allUniqueValues = new Set<string>();
+    //     selectedColumnsForNaN.forEach(column => {
+    //         const columnIndex = columns.indexOf(column);
+    //         const values = data.map(row => {
+    //             const value = row[columnIndex];
+    //             // Convert potential number strings to actual numbers for comparison
+    //             return isNaN(Number(value)) ? value : Number(value).toString();
+    //         });
+    //         values.forEach(value => allUniqueValues.add(value));
+    //     });
+    //     setUniqueValues(allUniqueValues);
+    // };
 
-const applyNaNRemoval = () => {
-    const newData = data.filter(row => {
-        return !selectedColumnsForNaN.some(column => {
-            const columnIndex = columns.indexOf(column);
-            const value = row[columnIndex];
-            // Convert value to string for consistent comparison
-            const normalizedValue = value === undefined || value === null || value === '' ? 'NaN' :
-                isNaN(Number(value)) ? value : Number(value).toString();
-            return selectedValues.has(normalizedValue);
+    const applyNaNRemoval = () => {
+        // First filter out rows containing selected values
+        const newData = data.filter(row => {
+            return !selectedColumnsForNaN.some(column => {
+                const columnIndex = columns.indexOf(column);
+                const value = row[columnIndex];
+                // Convert value to string for consistent comparison
+                const normalizedValue = value === undefined || value === null || value === '' ? 'NaN' :
+                    isNaN(Number(value)) ? value : Number(value).toString();
+                return selectedValues.has(normalizedValue);
+            });
         });
-    });
-    setData(newData);
-    setIsNaNModalOpen(false);
-    // Reset selections
-    setSelectedValues(new Set());
-    setSelectedColumnsForNaN([]);
-    setUniqueValues(new Set());
-};
+
+        // Then only keep the selected columns
+        const selectedColumnIndices = selectedColumnsForNaN.map(col => columns.indexOf(col));
+        const filteredColumns = selectedColumnsForNaN;
+        const filteredData = newData.map(row =>
+            selectedColumnIndices.map(index => row[index])
+        );
+
+        setColumns(filteredColumns);
+        setData(filteredData);
+        setIsNaNModalOpen(false);
+        // Reset selections
+        setSelectedValues(new Set());
+        setSelectedColumnsForNaN([]);
+        setUniqueValues(new Set());
+    };
 
     const handleColumnClick = (columnIndex: number) => {
         setSelectedColumn(getColumnStats(columnIndex));
@@ -189,29 +220,34 @@ const applyNaNRemoval = () => {
         }
     };
 
-    const discretizeColumn = (columnName: string, settings: typeof binSettings[string]) => {
-        const columnIndex = columns.indexOf(columnName);
-        const values = data.map(row => parseFloat(row[columnIndex]));
-        let bins: number[];
+    const discretizeColumns = (columnsToDiscretize: string[]) => {
+        let newData = [...data];
 
-        if (settings.type === 'size') {
-            const binSize = settings.value as number;
-            const min = Math.min(...values);
-            const max = Math.max(...values);
-            bins = Array.from({ length: Math.ceil((max - min) / binSize) }, (_, i) => min + i * binSize);
-        } else if (settings.type === 'count') {
-            const binCount = settings.value as number;
-            const sortedValues = [...values].sort((a, b) => a - b);
-            bins = Array.from({ length: binCount + 1 }, (_, i) =>
-                sortedValues[Math.floor(i * sortedValues.length / binCount)]);
-        } else {
-            bins = settings.value as number[];
-        }
+        columnsToDiscretize.forEach(columnName => {
+            const settings = binSettings[columnName];
+            const columnIndex = columns.indexOf(columnName);
+            const values = newData.map(row => parseFloat(row[columnIndex]));
+            let bins: number[];
 
-        const newData = data.map(row => {
-            const value = parseFloat(row[columnIndex]);
-            const binIndex = bins.findIndex((bin, i) => value >= bin && (!bins[i + 1] || value < bins[i + 1]));
-            return [...row.slice(0, columnIndex), binIndex.toString(), ...row.slice(columnIndex + 1)];
+            if (settings.type === 'size') {
+                const binSize = settings.value as number;
+                const min = Math.min(...values);
+                const max = Math.max(...values);
+                bins = Array.from({ length: Math.ceil((max - min) / binSize) }, (_, i) => min + i * binSize);
+            } else if (settings.type === 'count') {
+                const binCount = settings.value as number;
+                const sortedValues = [...values].sort((a, b) => a - b);
+                bins = Array.from({ length: binCount + 1 }, (_, i) =>
+                    sortedValues[Math.floor(i * sortedValues.length / binCount)]);
+            } else {
+                bins = settings.value as number[];
+            }
+
+            newData = newData.map(row => {
+                const value = parseFloat(row[columnIndex]);
+                const binIndex = bins.findIndex((bin, i) => value >= bin && (!bins[i + 1] || value < bins[i + 1]));
+                return [...row.slice(0, columnIndex), binIndex.toString(), ...row.slice(columnIndex + 1)];
+            });
         });
 
         setData(newData);
@@ -273,8 +309,8 @@ const applyNaNRemoval = () => {
             }
 
             return [...row.slice(0, columnIndices[0]),
-                    isNaN(result) ? 'NaN' : result.toString(),
-                    ...row.slice(columnIndices[0] + 1)];
+            isNaN(result) ? 'NaN' : result.toString(),
+            ...row.slice(columnIndices[0] + 1)];
         });
 
         setData(newData);
@@ -314,6 +350,7 @@ const applyNaNRemoval = () => {
         setSelectedColumnsForRelabel([]);
         setRelabelMappings({});
     };
+
     return (
         <div className="container mx-auto p-6 space-y-6">
             <div className="flex flex-col space-y-4 sm:space-y-6 md:space-y-0 md:flex-row md:justify-between md:items-center">
@@ -328,13 +365,13 @@ const applyNaNRemoval = () => {
                     <input
                         id="fileInput"
                         type="file"
-                        accept=".csv"
+                        accept=".csv,.xlsx,.xls"
                         className="hidden"
                         onChange={handleFileUpload}
                     />
                     <Button
                         className="w-full sm:w-auto"
-                        disabled={data.length===0}
+                        disabled={data.length === 0}
                         onClick={downloadCSV}
                     >
                         <span className="hidden sm:inline">Download CSV</span>
@@ -342,7 +379,7 @@ const applyNaNRemoval = () => {
                     </Button>
                     <Button
                         className="w-full sm:w-auto"
-                        disabled={data.length===0}
+                        disabled={data.length === 0}
                         onClick={() => setIsNaNModalOpen(true)}
                     >
                         <span className="hidden sm:inline">Remove NaNs</span>
@@ -350,28 +387,28 @@ const applyNaNRemoval = () => {
                     </Button>
                     <Button
                         className="w-full sm:w-auto"
-                        disabled={data.length===0}
+                        disabled={data.length === 0}
                         onClick={() => setIsDiscretizeModalOpen(true)}
                     >
                         <span className="hidden sm:inline">Discretize Columns</span>
                         <span className="sm:hidden">Discretize</span>
                     </Button>
                     <Button
-                    className="w-full sm:w-auto"
-                    disabled={data.length===0}
-                    onClick={() => setIsRelabelModalOpen(true)}
-                >
-                    <span className="hidden sm:inline">Relabel Values</span>
-                    <span className="sm:hidden">Relabel</span>
-                </Button>
-                <Button
-                    className="w-full sm:w-auto"
-                    disabled={data.length===0}
-                    onClick={() => setIsColumnOperationsOpen(true)}
-                >
-                    <span className="hidden sm:inline">Column Operations</span>
-                    <span className="sm:hidden">Operations</span>
-                </Button>
+                        className="w-full sm:w-auto"
+                        disabled={data.length === 0}
+                        onClick={() => setIsRelabelModalOpen(true)}
+                    >
+                        <span className="hidden sm:inline">Relabel Values</span>
+                        <span className="sm:hidden">Relabel</span>
+                    </Button>
+                    <Button
+                        className="w-full sm:w-auto"
+                        disabled={data.length === 0}
+                        onClick={() => setIsColumnOperationsOpen(true)}
+                    >
+                        <span className="hidden sm:inline">Column Operations</span>
+                        <span className="sm:hidden">Operations</span>
+                    </Button>
                 </div>
 
 
@@ -441,15 +478,15 @@ const applyNaNRemoval = () => {
                         </motion.div>
                     </motion.div>
                 </Card>
-            ):    <Card>
-            <CardHeader>
-                <CardTitle>Data Preview</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <div className="w-full overflow-auto">
-                    <ScrollArea className="h-[600px] w-full">
-                        <div className="min-w-[800px]"> {/* Minimum width to prevent squishing */}
-                            <Table>
+            ) : <Card>
+                <CardHeader>
+                    <CardTitle>Data Preview</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="w-full overflow-auto">
+
+                        <div className="w-full  h-[600px] overflow-y-scroll">
+                            <Table className="min-w-max">
                                 <TableHeader>
                                     <TableRow>
                                         <TableHead className="bg-slate-50 sticky left-0 z-20">ALLOS ID</TableHead>
@@ -478,209 +515,456 @@ const applyNaNRemoval = () => {
                                 </TableBody>
                             </Table>
                         </div>
-                    </ScrollArea>
-                </div>
-            </CardContent>
-        </Card>}
+
+                    </div>
+                </CardContent>
+            </Card>}
 
             <AnimatePresence>
-            {isColumnDialogOpen && (
-                <motion.div
-                    className="fixed inset-0 z-50 flex items-center justify-center"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                >
+                {isColumnDialogOpen && (
                     <motion.div
-                        className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                        className="fixed inset-0 z-50 flex items-center justify-center"
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        onClick={() => setIsColumnDialogOpen(false)}
-                    />
-                    <motion.div
-                        className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[90vh] overflow-hidden"
-                        initial={{ scale: 0.95, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.95, opacity: 0 }}
-                        transition={{ type: "spring", duration: 0.3 }}
                     >
-                        <div className="p-6 border-b">
-                            <h2 className="text-xl font-semibold">Column: {selectedColumn?.name}</h2>
-                            <button
-                                onClick={() => setIsColumnDialogOpen(false)}
-                                className="absolute right-4 top-4 p-2 hover:bg-gray-100 rounded-full"
-                            >
-                                ✕
-                            </button>
-                        </div>
-                        <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-                            <div className="space-y-4">
-                                <div className="flex items-center space-x-2">
-                                    <Input
-                                        value={newColumnName}
-                                        onChange={(e) => setNewColumnName(e.target.value)}
-                                        placeholder="New column name"
-                                    />
-                                    <Button onClick={handleColumnRename}>Rename</Button>
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold">Column Type: {selectedColumn?.type}</h3>
-                                </div>
-                                <div>
-                                    <h3 className="font-semibold mb-2">Value Distribution</h3>
-                                    <div className="space-y-2">
-                                        {selectedColumn?.uniqueValues.map(({ value, count }) => (
-                                            <div key={value} className="flex items-center space-x-2">
-                                                <div className="w-24 truncate">{value}</div>
-                                                <div className="flex-1 bg-gray-200 h-4 rounded">
-                                                    <motion.div
-                                                        className="bg-blue-500 h-full rounded"
-                                                        initial={{ width: 0 }}
-                                                        animate={{ width: `${(count / data.length) * 100}%` }}
-                                                        transition={{ duration: 0.5 }}
-                                                    />
+                        <motion.div
+                            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            onClick={() => setIsColumnDialogOpen(false)}
+                        />
+                        <motion.div
+                            className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full m-4 max-h-[90vh] overflow-hidden"
+                            initial={{ scale: 0.95, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.95, opacity: 0 }}
+                            transition={{ type: "spring", duration: 0.3 }}
+                        >
+                            <div className="p-6 border-b">
+                                <h2 className="text-xl font-semibold">Column: {selectedColumn?.name}</h2>
+                                <button
+                                    onClick={() => setIsColumnDialogOpen(false)}
+                                    className="absolute right-4 top-4 p-2 hover:bg-gray-100 rounded-full"
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                                <div className="space-y-4">
+                                    <div className="flex items-center space-x-2">
+                                        <Input
+                                            value={newColumnName}
+                                            onChange={(e) => setNewColumnName(e.target.value)}
+                                            placeholder="New column name"
+                                        />
+                                        <Button onClick={handleColumnRename}>Rename</Button>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold">Column Type: {selectedColumn?.type}</h3>
+                                    </div>
+                                    <div>
+                                        <h3 className="font-semibold mb-2">Value Distribution</h3>
+                                        <div className="space-y-2">
+                                            {selectedColumn?.uniqueValues.map(({ value, count }) => (
+                                                <div key={value} className="flex items-center space-x-2">
+                                                    <div className="w-24 truncate">{value}</div>
+                                                    <div className="flex-1 bg-gray-200 h-4 rounded">
+                                                        <motion.div
+                                                            className="bg-blue-500 h-full rounded"
+                                                            initial={{ width: 0 }}
+                                                            animate={{ width: `${(count / data.length) * 100}%` }}
+                                                            transition={{ duration: 0.5 }}
+                                                        />
+                                                    </div>
+                                                    <div className="w-16 text-right">{count}</div>
                                                 </div>
-                                                <div className="w-16 text-right">{count}</div>
-                                            </div>
-                                        ))}
+                                            ))}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </motion.div>
                     </motion.div>
-                </motion.div>
-            )}
+                )}
 
                 {isNaNModalOpen && (
-                    <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
+                    <motion.div className="fixed  inset-0 z-50 flex items-center justify-center">
                         <motion.div
                             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                             onClick={() => setIsNaNModalOpen(false)}
                         />
-                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
+                        <motion.div className="relative max-h-[90vh] h-[80vh] overflow-auto bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
                             <h2 className="text-xl font-semibold mb-4">Remove Values</h2>
 
-                            {/* Added info panel */}
+                            {uniqueValues.size === 0 ? (
+                                <>
+                                    <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                                        <h4 className="font-medium text-blue-800 mb-2">How to use:</h4>
+                                        <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
+                                            <li>First, select one or more columns you want to clean</li>
+                                            <li>Click "Show Unique Values" to see all values in selected columns</li>
+                                            <li>Check the boxes next to values you want to remove</li>
+                                            <li>Click "Apply Removal" to remove rows containing selected values</li>
+                                        </ol>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="font-medium mb-2">Select Columns to Clean:</h3>
+                                        <div className="flex flex-col space-y-4">
+                                            <Input
+                                                type="text"
+                                                placeholder="Search columns..."
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                                className="pl-8"
+                                            />
+                                            <div className="flex gap-2">
+                                                <Button
+                                                    variant="outline"
+                                                    className="text-xs"
+                                                    onClick={() => setSelectedColumnsForNaN(columns)}
+                                                >
+                                                    Select All
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    className="text-xs"
+                                                    onClick={() => setSelectedColumnsForNaN([])}
+                                                >
+                                                    Clear All
+                                                </Button>
+                                            </div>
+                                            <ScrollArea className="h-[200px] border rounded-md p-2 mt-2">
+                                                {columns
+                                                    .filter(col => col.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                    .map((column, id) => (
+                                                        <div
+                                                            key={id}
+                                                            className={`
+                                                                flex items-center justify-between p-2 rounded
+                                                                ${selectedColumnsForNaN.includes(column)
+                                                                    ? 'bg-blue-50 hover:bg-blue-100'
+                                                                    : 'hover:bg-gray-100'
+                                                                }
+                                                                cursor-pointer
+                                                            `}
+                                                            onClick={() => {
+                                                                setSelectedColumnsForNaN(prev =>
+                                                                    prev.includes(column)
+                                                                        ? prev.filter(c => c !== column)
+                                                                        : [...prev, column]
+                                                                );
+                                                            }}
+                                                        >
+                                                            <div className="flex items-center space-x-2">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedColumnsForNaN.includes(column)}
+                                                                    onChange={() => { }} // Handled by parent onClick
+                                                                    className="rounded border-gray-300"
+                                                                />
+                                                                <span className="truncate">{column}</span>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                            </ScrollArea>
+
+
+
+                                        </div>
+
+                                        {selectedColumnsForNaN.length > 0 && (
+                                            <Button
+                                                className="w-full mt-4"
+                                                onClick={() => {
+                                                    const allUniqueValues = new Set<string>();
+                                                    selectedColumnsForNaN.forEach(column => {
+                                                        const columnIndex = columns.indexOf(column);
+                                                        const values = data.map(row => {
+                                                            const value = row[columnIndex];
+                                                            // Handle null, undefined, or empty values
+                                                            if (!value) return 'NaN';
+                                                            // Convert to string and check if it's empty after trimming
+                                                            const strValue = String(value);
+                                                            if (strValue.trim() === '') return 'NaN';
+                                                            // Handle numeric values
+                                                            const numValue = Number(value);
+                                                            if (!isNaN(numValue)) return numValue.toString();
+                                                            // Return original value as string
+                                                            return strValue;
+                                                        });
+                                                        values.forEach(value => {
+                                                            if (value) allUniqueValues.add(value);
+                                                        });
+                                                    });
+                                                    setUniqueValues(allUniqueValues);
+                                                }}
+                                            >
+                                                Show Unique Values
+                                            </Button>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className='h-[calc(100vh-20rem)] flex flex-col'>
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setUniqueValues(new Set())}
+                                        className="shrink-0"
+                                    >
+                                        ← Back to Column Selection
+                                    </Button>
+                                    <div className="my-2">
+                                        <Input
+                                            type="text"
+                                            placeholder="Search values..."
+                                            className="w-full"
+                                            value={searchTerm}
+                                            onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+                                        />
+                                    </div>
+                                    {selectedValues.size > 0 && (
+
+
+                                        <div className="mt-0 shrink-0 mb-2">
+                                            <div className="bg-yellow-50 p-3 rounded-lg">
+                                                <p className="text-sm text-yellow-800">
+                                                    ⚠️ This will remove rows containing the selected values.
+                                                    This action cannot be undone.
+                                                </p>
+                                            </div>
+                                        </div>)}
+
+                                    <div className="mt-4 flex-1 min-h-0">
+                                        <ScrollArea className="h-full border rounded-lg">
+                                            {Array.from(uniqueValues)
+                                                .filter((value: string) => value.toString().toLowerCase().includes(searchTerm))
+                                                .map((value: string, id: number) => (
+                                                    <div key={id} className="flex items-center space-x-2 p-2 hover:bg-gray-50">
+                                                        <input
+                                                            type="checkbox"
+                                                            id={`value-${value}`}
+                                                            checked={selectedValues.has(value)}
+                                                            onChange={() => {
+                                                                const newSelected = new Set(selectedValues);
+                                                                if (newSelected.has(value)) {
+                                                                    newSelected.delete(value);
+                                                                } else {
+                                                                    newSelected.add(value);
+                                                                }
+                                                                setSelectedValues(newSelected);
+                                                            }}
+                                                            className="h-4 w-4 rounded border-gray-300"
+                                                        />
+                                                        <label htmlFor={`value-${value}`} className="flex-grow cursor-pointer">
+                                                            {value === 'NaN' ? 'NaN (empty or invalid values)' : value}
+                                                        </label>
+                                                    </div>
+                                                ))}
+                                        </ScrollArea>
+                                    </div>
+
+
+                                    {selectedValues.size > 0 && (
+                                        <Button
+                                            onClick={applyNaNRemoval}
+                                            className="w-full mt-4 shrink-0"
+                                        >
+                                            Remove Selected Values
+                                        </Button>
+                                    )}
+                                </div>
+                            )}
+
+                        </motion.div>
+                    </motion.div>
+
+                )}
+
+
+                {isColumnOperationsOpen && (
+                    <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <motion.div
+                            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                            onClick={() => setIsColumnOperationsOpen(false)}
+                        />
+                        <motion.div className="relative max-h-[90vh] h-[80vh] overflow-auto bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
+                            <h2 className="text-xl font-semibold mb-4">Column Operations</h2>
+
                             <div className="bg-blue-50 p-4 rounded-lg mb-6">
                                 <h4 className="font-medium text-blue-800 mb-2">How to use:</h4>
                                 <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
-                                    <li>First, select one or more columns you want to clean</li>
-                                    <li>Click &quot;Show Unique Values&quot; to see all values in selected columns</li>
-                                    <li>Check the boxes next to values you want to remove</li>
-                                    <li>Click &quot;Apply Removal&quot; to remove rows containing selected values</li>
+                                    <li>Select one column for single operations or multiple columns for combined operations</li>
+                                    <li>For single column: choose operation type and parameters</li>
+                                    <li>For multiple columns: set prefactors and operations between columns</li>
+                                    <li>Preview the formula before applying changes</li>
                                 </ol>
                             </div>
 
-                            <div className="space-y-4">
+                            <div className="space-y-6">
                                 <div>
-                                    <h3 className="font-medium mb-2">Select Columns to Clean:</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        {columns.map((column, id) => (
-                                            <Button
-                                                key={id}
-                                                variant={selectedColumnsForNaN.includes(column) ? "default" : "outline"}
-                                                onClick={() => {
-                                                    setSelectedColumnsForNaN(prev =>
-                                                        prev.includes(column)
-                                                            ? prev.filter(c => c !== column)
-                                                            : [...prev, column]
-                                                    );
-                                                }}
-                                            >
-                                                {column}
-                                                {selectedColumnsForNaN.includes(column) &&
-                                                    <span className="ml-1 text-green-500">✓</span>
-                                                }
-                                            </Button>
-                                        ))}
+                                    <h3 className="font-medium mb-2">Select Columns:</h3>
+                                    <Input
+                                        type="text"
+                                        placeholder="Search columns..."
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="mb-2"
+                                    />
+                                    <div className="flex gap-2 mb-2">
+                                        <Button
+                                            variant="outline"
+                                            className="text-xs"
+                                            onClick={() => setSelectedColumnsForOperations(columns)}
+                                        >
+                                            Select All
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            className="text-xs"
+                                            onClick={() => setSelectedColumnsForOperations([])}
+                                        >
+                                            Clear All
+                                        </Button>
                                     </div>
+                                    <ScrollArea className="h-[200px] border rounded-md p-2">
+                                        {columns
+                                            .filter(col => col.toLowerCase().includes(searchTerm.toLowerCase()))
+                                            .map((column, id) => (
+                                                <div
+                                                    key={id}
+                                                    className={`
+                                                    flex items-center justify-between p-2 rounded
+                                                    ${selectedColumnsForOperations.includes(column)
+                                                            ? 'bg-blue-50 hover:bg-blue-100'
+                                                            : 'hover:bg-gray-100'
+                                                        }
+                                                    cursor-pointer
+                                                `}
+                                                    onClick={() => {
+                                                        setSelectedColumnsForOperations(prev =>
+                                                            prev.includes(column)
+                                                                ? prev.filter(c => c !== column)
+                                                                : [...prev, column]
+                                                        );
+                                                    }}
+                                                >
+                                                    <div className="flex items-center space-x-2">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedColumnsForOperations.includes(column)}
+                                                            onChange={() => { }} // Handled by parent onClick
+                                                            className="rounded border-gray-300"
+                                                        />
+                                                        <span className="truncate">{column}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </ScrollArea>
                                 </div>
 
-                                {selectedColumnsForNaN.length > 0 ? (
-                                    <div>
-                                        <Button
-                                            onClick={() => {
-                                                const allUniqueValues = new Set<string>();
-                                                selectedColumnsForNaN.forEach(column => {
-                                                    const columnIndex = columns.indexOf(column);
-                                                    const values = data.map(row => {
-                                                        const value = row[columnIndex];
-                                                        // Handle empty cells, undefined, or null
-                                                        if (!value || value.trim() === '') {
-                                                            return 'NaN';
-                                                        }
-                                                        // Try to convert to number if possible
-                                                        const numValue = Number(value);
-                                                        // If it's not a valid number, return the original string value
-                                                        return isNaN(numValue) ? value : numValue.toString();
-                                                    });
-                                                    values.forEach(value => allUniqueValues.add(value));
-                                                });
-                                                setUniqueValues(allUniqueValues);
-                                            }}
-                                            className="w-full justify-center"
-                                        >
-                                            <span className="mr-2">🔍</span>
-                                            Show Unique Values in Selected Columns
-                                        </Button>
-
-                                        {uniqueValues.size > 0 && (
-                                            <div className="mt-4">
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <h4 className="font-medium">Select values to remove:</h4>
-                                                    <span className="text-sm text-gray-500">
-                                                        {selectedValues.size} selected
-                                                    </span>
+                                {selectedColumnsForOperations.length > 0 && (
+                                    <div className="space-y-4 border-t pt-4">
+                                        {selectedColumnsForOperations.length === 1 ? (
+                                            <>
+                                                <h3 className="font-medium">Single Column Operation</h3>
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className="block text-sm font-medium mb-1">Operation Type</label>
+                                                        <select
+                                                            className="w-full p-2 border rounded"
+                                                            value={operationSettings.singleColumn.operation}
+                                                            onChange={(e) => setOperationSettings(prev => ({
+                                                                ...prev,
+                                                                singleColumn: {
+                                                                    ...prev.singleColumn,
+                                                                    operation: e.target.value as 'power' | 'exponential' | 'logarithm'
+                                                                }
+                                                            }))}
+                                                        >
+                                                            <option value="power">Power (x^n)</option>
+                                                            <option value="exponential">Exponential (n^x)</option>
+                                                            <option value="logarithm">Logarithm (log_n(x))</option>
+                                                        </select>
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-sm font-medium mb-1">Operation Number (n)</label>
+                                                        <Input
+                                                            type="number"
+                                                            value={operationSettings.singleColumn.operationNumber}
+                                                            onChange={(e) => setOperationSettings(prev => ({
+                                                                ...prev,
+                                                                singleColumn: {
+                                                                    ...prev.singleColumn,
+                                                                    operationNumber: parseFloat(e.target.value)
+                                                                }
+                                                            }))}
+                                                        />
+                                                    </div>
                                                 </div>
-                                                <div className="mt-2 max-h-60 overflow-y-auto border rounded-lg p-2">
-                                                    {Array.from(uniqueValues).map(value => (
-                                                        <div key={value} className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded">
-                                                            <input
-                                                                type="checkbox"
-                                                                id={`value-${value}`}
-                                                                checked={selectedValues.has(value)}
-                                                                onChange={() => {
-                                                                    const newSelected = new Set(selectedValues);
-                                                                    if (newSelected.has(value)) {
-                                                                        newSelected.delete(value);
-                                                                    } else {
-                                                                        newSelected.add(value);
+                                                <Button
+                                                    className="w-full mt-4"
+                                                    onClick={applySingleColumnOperation}
+                                                >
+                                                    Apply Operation
+                                                </Button>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <h3 className="font-medium">Multi-Column Operation</h3>
+                                                <ScrollArea className="h-[200px]">
+                                                    {selectedColumnsForOperations.map((column, index) => (
+                                                        <div key={column} className="flex items-center gap-2 mb-2">
+                                                            <span className="min-w-[120px] truncate">{column}</span>
+                                                            <Input
+                                                                type="number"
+                                                                placeholder="Prefactor"
+                                                                className="w-24"
+                                                                onChange={(e) => setOperationSettings(prev => ({
+                                                                    ...prev,
+                                                                    multiColumn: {
+                                                                        ...prev.multiColumn,
+                                                                        prefactors: {
+                                                                            ...prev.multiColumn.prefactors,
+                                                                            [column]: parseFloat(e.target.value)
+                                                                        }
                                                                     }
-                                                                    setSelectedValues(newSelected);
-                                                                }}
-                                                                className="h-4 w-4 rounded border-gray-300"
+                                                                }))}
                                                             />
-                                                            <label htmlFor={`value-${value}`} className="flex-grow cursor-pointer">
-                                                                {value === 'NaN' ? 'NaN (empty or invalid values)' : value}
-                                                            </label>
+                                                            {index < selectedColumnsForOperations.length - 1 && (
+                                                                <select
+                                                                    className="border rounded p-2"
+                                                                    value={operationSettings.multiColumn.operations[index]}
+                                                                    onChange={(e) => {
+                                                                        const newOperations = [...operationSettings.multiColumn.operations];
+                                                                        newOperations[index] = e.target.value;
+                                                                        setOperationSettings(prev => ({
+                                                                            ...prev,
+                                                                            multiColumn: {
+                                                                                ...prev.multiColumn,
+                                                                                operations: newOperations
+                                                                            }
+                                                                        }));
+                                                                    }}
+                                                                >
+                                                                    <option value="+">Add (+)</option>
+                                                                    <option value="-">Subtract (-)</option>
+                                                                    <option value="*">Multiply (×)</option>
+                                                                    <option value="/">Divide (÷)</option>
+                                                                </select>
+                                                            )}
                                                         </div>
                                                     ))}
-                                                </div>
-
-                                                {selectedValues.size > 0 && (
-                                                    <div className="mt-4">
-                                                        <div className="bg-yellow-50 p-3 rounded-lg mb-4">
-                                                            <p className="text-sm text-yellow-800">
-                                                                ⚠️ This will remove {selectedValues.size} rows containing the selected values.
-                                                                This action cannot be undone.
-                                                            </p>
-                                                        </div>
-                                                        <Button
-                                                            onClick={applyNaNRemoval}
-                                                            className="w-full justify-center"
-                                                        >
-                                                            Remove Selected Values
-                                                        </Button>
-                                                    </div>
-                                                )}
-                                            </div>
+                                                </ScrollArea>
+                                                <Button
+                                                    className="w-full mt-4"
+                                                    onClick={applyMultiColumnOperation}
+                                                >
+                                                    Apply Operations
+                                                </Button>
+                                            </>
                                         )}
                                     </div>
-                                ) : (
-                                    <p className="text-sm text-gray-500 italic">
-                                        👆 Please select at least one column to start
-                                    </p>
                                 )}
                             </div>
                         </motion.div>
@@ -693,99 +977,170 @@ const applyNaNRemoval = () => {
                             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                             onClick={() => setIsDiscretizeModalOpen(false)}
                         />
-                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full max-h-[90vh] h-[90vh] overflow-y-auto">
                             <h2 className="text-xl font-semibold mb-4">Discretize Columns</h2>
 
-                            {/* Info Panel */}
-                            <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                                <h4 className="font-medium text-blue-800 mb-2">How to discretize:</h4>
-                                <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
-                                    <li>Select one or more continuous columns (discrete and index columns are disabled)</li>
-                                    <li>For each column, choose a binning method:
-                                        <ul className="list-disc list-inside ml-4 mt-1">
-                                            <li>Bin size: Fixed width for each bin</li>
-                                            <li>Number of bins: Equal-frequency binning</li>
-                                            <li>Custom bins: Define specific boundary values</li>
-                                        </ul>
-                                    </li>
-                                    <li>Click &quot;Apply Discretization&quot; to transform the data</li>
-                                </ol>
-                            </div>
-
-                            <div className="space-y-6">
-                                <div>
-                                    <h3 className="font-medium mb-2">Select Columns to Discretize:</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        {columns.map((column, index) => {
-                                            const type = getColumnType(index);
-                                            return (
-                                                <Button
-                                                    key={column}
-                                                    variant={selectedColumnsForDiscretize.includes(column) ? "default" : "outline"}
-                                                    disabled={type === 'discrete' || type === 'index'}
-                                                    className={`
-                                                        group relative
-                                                        ${type === 'discrete' && 'opacity-50'}
-                                                        ${type === 'index' && 'text-red-500'}
-                                                    `}
-                                                    onClick={() => {
-                                                        setSelectedColumnsForDiscretize(prev =>
-                                                            prev.includes(column)
-                                                                ? prev.filter(c => c !== column)
-                                                                : [...prev, column]
-                                                        );
-                                                    }}
-                                                >
-                                                    {column}
-                                                    {selectedColumnsForDiscretize.includes(column) &&
-                                                        <span className="ml-1 text-green-500">✓</span>
-                                                    }
-                                                    <span className="invisible group-hover:visible absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-2 py-1 rounded text-xs whitespace-nowrap">
-                                                        {type} column
-                                                    </span>
-                                                </Button>
-                                            );
-                                        })}
+                            {Object.keys(binSettings).length === 0 ? (
+                                <>
+                                    <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                                        <h4 className="font-medium text-blue-800 mb-2">How to discretize:</h4>
+                                        <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
+                                            <li>Select continuous columns you want to discretize</li>
+                                            <li>Click "Configure Binning" to set up discretization for each column</li>
+                                            <li>Choose binning method and parameters for each selected column</li>
+                                            <li>Apply the transformation to your data</li>
+                                        </ol>
                                     </div>
-                                </div>
 
-                                {selectedColumnsForDiscretize.length > 0 && (
-                                    <div className="space-y-4">
-                                        {selectedColumnsForDiscretize.map(column => (
-                                            <div key={column} className="border p-4 rounded-lg">
-                                                <h3 className="font-medium mb-4 flex items-center justify-between">
-                                                    <span>{column}</span>
-                                                    <span className="text-sm text-gray-500">
-                                                        {binSettings[column]?.type ? `Using ${binSettings[column].type} binning` : 'No binning set'}
-                                                    </span>
-                                                </h3>
-                                                <div className="space-y-4">
+                                    <div>
+                                        <h3 className="font-medium mb-2">Select Columns:</h3>
+                                        <Input
+                                            type="text"
+                                            placeholder="Search columns..."
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="mb-2"
+                                        />
+                                        <div className="flex gap-2 mb-2">
+                                            <Button
+                                                variant="outline"
+                                                className="text-xs"
+                                                onClick={() => setSelectedColumnsForDiscretize(
+                                                    columns.filter((_, index) => getColumnType(index) === 'continuous')
+                                                )}
+                                            >
+                                                Select All Continuous
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                className="text-xs"
+                                                onClick={() => setSelectedColumnsForDiscretize([])}
+                                            >
+                                                Clear All
+                                            </Button>
+                                        </div>
+                                        <ScrollArea className="h-[300px] border rounded-md p-2">
+                                            {columns
+                                                .filter(col => col.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                .map((column, index) => {
+                                                    const type = getColumnType(index);
+                                                    return (
+                                                        <div
+                                                            key={index}
+                                                            className={`
+                                                flex items-center justify-between p-2 rounded
+                                                ${type !== 'continuous' ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
+                                                ${selectedColumnsForDiscretize.includes(column) ? 'bg-blue-50' : 'hover:bg-gray-100'}
+                                            `}
+                                                            onClick={() => {
+                                                                if (type === 'continuous') {
+                                                                    setSelectedColumnsForDiscretize(prev =>
+                                                                        prev.includes(column)
+                                                                            ? prev.filter(c => c !== column)
+                                                                            : [...prev, column]
+                                                                    );
+                                                                }
+                                                            }}
+                                                        >
+                                                            <div className="flex items-center space-x-2">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedColumnsForDiscretize.includes(column)}
+                                                                    disabled={type !== 'continuous'}
+                                                                    onChange={() => { }}
+                                                                    className="rounded border-gray-300"
+                                                                />
+                                                                <span>{column}</span>
+                                                            </div>
+                                                            <span className="text-sm text-gray-500">{type}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                        </ScrollArea>
+
+                                        {selectedColumnsForDiscretize.length > 0 && (
+                                            <Button
+                                                className="w-full mt-4"
+                                                onClick={() => {
+                                                    const initialSettings: Record<string, { type: 'size' | 'count' | 'custom', value: number | number[] }> = {};
+                                                    selectedColumnsForDiscretize.forEach(column => {
+                                                        initialSettings[column] = {
+                                                            type: 'size',
+                                                            value: 1
+                                                        };
+                                                    });
+                                                    setBinSettings(initialSettings);
+                                                }}
+                                            >
+                                                Configure Binning ({selectedColumnsForDiscretize.length} columns)
+                                            </Button>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-6">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setBinSettings({})}
+                                        className="mb-4"
+                                    >
+                                        ← Back to Column Selection
+                                    </Button>
+
+                                    {selectedColumnsForDiscretize.map((column, id) => (
+                                        <div key={id} className="border p-4 rounded-lg">
+                                            <h3 className="font-medium mb-4">{column}</h3>
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="text-sm font-medium mb-1 block">Binning Method</label>
+                                                    <Select
+                                                        value={binSettings[column]?.type}
+                                                        onValueChange={(value) => setBinSettings(prev => ({
+                                                            ...prev,
+                                                            [column]: { ...prev[column], type: value as 'size' | 'count' | 'custom' }
+                                                        }))}
+                                                    >
+                                                        <SelectTrigger className="w-full">
+                                                            <SelectValue placeholder="Select binning method" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="size">Fixed Bin Size</SelectItem>
+                                                            <SelectItem value="count">Number of Bins</SelectItem>
+                                                            <SelectItem value="custom">Custom Boundaries</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+
+                                                {binSettings[column]?.type === 'size' && (
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="Enter size of each bin"
+                                                        value={Array.isArray(binSettings[column].value) ? binSettings[column].value.join(',') : binSettings[column].value.toString()}
+                                                        onChange={(e) => setBinSettings(prev => ({
+                                                            ...prev,
+                                                            [column]: { ...prev[column], value: parseFloat(e.target.value) }
+                                                        }))}
+                                                    />
+                                                )}
+
+                                                {binSettings[column]?.type === 'count' && (
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="Enter number of bins"
+                                                        value={Array.isArray(binSettings[column].value) ? binSettings[column].value.join(',') : binSettings[column].value.toString()}
+                                                        onChange={(e) => setBinSettings(prev => ({
+                                                            ...prev,
+                                                            [column]: { ...prev[column], value: parseFloat(e.target.value) }
+                                                        }))}
+                                                    />
+                                                )}
+
+                                                {binSettings[column]?.type === 'custom' && (
                                                     <div>
-                                                        <label className="text-sm font-medium mb-1 block">Fixed Bin Size</label>
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="Enter size of each bin"
-                                                            onChange={(e) => setBinSettings(prev => ({
-                                                                ...prev,
-                                                                [column]: { type: 'size', value: parseFloat(e.target.value) }
-                                                            }))}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-sm font-medium mb-1 block">Number of Equal-Frequency Bins</label>
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="Enter desired number of bins"
-                                                            onChange={(e) => setBinSettings(prev => ({
-                                                                ...prev,
-                                                                [column]: { type: 'count', value: parseFloat(e.target.value) }
-                                                            }))}
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-sm font-medium mb-1 block">Custom Bin Boundaries</label>
                                                         <Input
                                                             placeholder="e.g., 0,10,20,30,40"
+                                                            value={Array.isArray(binSettings[column].value) 
+                                                                ? binSettings[column].value.join(',') 
+                                                                : binSettings[column].value?.toString() || ''}
                                                             onChange={(e) => setBinSettings(prev => ({
                                                                 ...prev,
                                                                 [column]: {
@@ -798,222 +1153,335 @@ const applyNaNRemoval = () => {
                                                             Enter comma-separated values for bin boundaries
                                                         </p>
                                                     </div>
-                                                </div>
+                                                )}
                                             </div>
-                                        ))}
 
-                                        <Button
-                                            className="w-full"
-                                            onClick={() => {
-                                                selectedColumnsForDiscretize.forEach(column => {
-                                                    if (binSettings[column]) {
-                                                        discretizeColumn(column, binSettings[column]);
-                                                    }
-                                                });
-                                                setIsDiscretizeModalOpen(false);
-                                            }}
-                                        >
-                                            Apply Discretization
-                                        </Button>
+                                        </div>
+
+                                    ))}
+
+                                    <Button
+                                    className='w-full'
+                                    onClick={() => {
+                                        discretizeColumns(selectedColumnsForDiscretize);
+                                        setIsDiscretizeModalOpen(false);
+                                        setBinSettings({});
+                                        setSelectedColumnsForDiscretize([]);
+
+                                    }}
+                                    >
+                                        Apply Discretization
+                                    </Button>
+                                </div>)}
+
+                        </motion.div>
+                    </motion.div>
+                )},
+                
+               
+                {isRelabelModalOpen && (
+                    <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
+                        <motion.div
+                            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
+                            onClick={() => setIsRelabelModalOpen(false)}
+                        />
+                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full max-h-[90vh] h-[90vh] overflow-y-auto">
+                            <h2 className="text-xl font-semibold mb-4">Relabel Values</h2>
+
+                            {Object.keys(relabelMappings).length === 0 ? (
+                                <>
+                                    <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                                        <h4 className="font-medium text-blue-800 mb-2">How to relabel:</h4>
+                                        <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
+                                            <li>Select columns you want to relabel values for</li>
+                                            <li>Click "Configure Relabeling" to set up new labels</li>
+                                            <li>For each column, specify new labels for existing values</li>
+                                            <li>Apply the changes to update your data</li>
+                                        </ol>
                                     </div>
-                                )}
-                            </div>
+
+                                    <div>
+                                        <h3 className="font-medium mb-2">Select Columns:</h3>
+                                        <Input
+                                            type="text"
+                                            placeholder="Search columns..."
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="mb-2"
+                                        />
+                                        <div className="flex gap-2 mb-2">
+                                            <Button
+                                                variant="outline"
+                                                className="text-xs"
+                                                onClick={() => setSelectedColumnsForRelabel(columns)}
+                                            >
+                                                Select All
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                className="text-xs"
+                                                onClick={() => setSelectedColumnsForRelabel([])}
+                                            >
+                                                Clear All
+                                            </Button>
+                                        </div>
+                                        <ScrollArea className="h-[300px] border rounded-md p-2">
+                                            {columns
+                                                .filter(col => col.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                .map((column, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className={`
+                                                            flex items-center justify-between p-2 rounded
+                                                            cursor-pointer
+                                                            ${selectedColumnsForRelabel.includes(column) ? 'bg-blue-50' : 'hover:bg-gray-100'}
+                                                        `}
+                                                        onClick={() => {
+                                                            setSelectedColumnsForRelabel(prev =>
+                                                                prev.includes(column)
+                                                                    ? prev.filter(c => c !== column)
+                                                                    : [...prev, column]
+                                                            );
+                                                        }}
+                                                    >
+                                                        <div className="flex items-center space-x-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedColumnsForRelabel.includes(column)}
+                                                                onChange={() => {}}
+                                                                className="rounded border-gray-300"
+                                                            />
+                                                            <span>{column}</span>
+                                                        </div>
+                                                        
+                                                    </div>
+                                                ))}
+                                        </ScrollArea>
+
+                                        {selectedColumnsForRelabel.length > 0 && (
+                                            <Button
+                                                className="w-full mt-4"
+                                                onClick={() => {
+                                                    const initialMappings: Record<string, {
+                                                        uniqueValues: string[],
+                                                        newLabels: string,
+                                                        hasEmptyCells?: boolean
+                                                    }> = {};
+                                                    selectedColumnsForRelabel.forEach(column => {
+                                                        const uniqueValues = getUniqueValuesForColumn(column);
+                                                        const hasEmptyCells = uniqueValues.some(v => {
+                                                            if (v === null || v === undefined) return true;
+                                                            const strValue = String(v);
+                                                            return !strValue || strValue.trim() === '';
+                                                        });
+                                                        initialMappings[column] = {
+                                                            uniqueValues,
+                                                            newLabels: '',
+                                                            hasEmptyCells
+                                                        };
+                                                    });
+                                                    setRelabelMappings(initialMappings);
+                                                }}
+                                            >
+                                                Configure Relabeling ({selectedColumnsForRelabel.length} columns)
+                                            </Button>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="space-y-6">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setRelabelMappings({})}
+                                        className="mb-4"
+                                    >
+                                        ← Back to Column Selection
+                                    </Button>
+
+                                    {selectedColumnsForRelabel.map((column, index) => (
+                                        <div key={index} className="border p-4 rounded-lg">
+                                            <h3 className="font-medium mb-4">{column}</h3>
+                                            {relabelMappings[column]?.hasEmptyCells && (
+                                                <div className="mb-4 bg-yellow-50 p-4 rounded-lg">
+                                                    <p className="text-sm text-yellow-700">
+                                                        ⚠️ This column contains empty cells
+                                                    </p>
+                                                </div>
+                                            )}
+                                            <div className="space-y-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">
+                                                        Current Values: {relabelMappings[column]?.uniqueValues.join(', ')}
+                                                    </label>
+                                                    <Input
+                                                        placeholder="Enter new labels (comma-separated)"
+                                                        value={relabelMappings[column]?.newLabels || ''}
+                                                        onChange={(e) => setRelabelMappings(prev => ({
+                                                            ...prev,
+                                                            [column]: {
+                                                                ...prev[column],
+                                                                newLabels: e.target.value
+                                                            }
+                                                        }))}
+                                                    />
+                                                   
+                                                </div>
+                                                <p className="text-sm text-gray-500 mt-1">
+                                                        {(() => {
+                                                            const mapping = relabelMappings[column];
+                                                            const currentLabels = mapping?.newLabels ? mapping.newLabels.split(',').map(l => l.trim()) : [];
+                                                            const isLabelCountMismatch = currentLabels.length !== mapping?.uniqueValues.length;
+
+                                                            if (isLabelCountMismatch) {
+                                                                return (
+                                                                    <motion.div
+                                                                        initial={{ opacity: 0, y: -10 }}
+                                                                        animate={{ opacity: 1, y: 0 }}
+                                                                        className="text-red-500 flex items-center gap-1"
+                                                                    >
+                                                                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                        Please enter exactly {mapping?.uniqueValues.length} labels (currently have {currentLabels.length})
+                                                                    </motion.div>
+                                                                );
+                                                            }
+
+                                                            return `Enter ${mapping?.uniqueValues.length} comma-separated values`;
+                                                        })()}
+                                                    </p>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    <Button
+                                        className="w-full"
+                                        onClick={handleRelabelUpdate}
+                                    >
+                                        Apply Relabeling
+                                    </Button>
+                                </div>
+                            )}
                         </motion.div>
                     </motion.div>
                 )}
-{isRelabelModalOpen && (
-    <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
-        <motion.div
-            className="fixed inset-0 bg-black/30 backdrop-blur-sm"
-            onClick={() => setIsRelabelModalOpen(false)}
-        />
-        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-semibold mb-4">Relabel/Group Values</h2>
-
-            <div className="bg-blue-50 p-4 rounded-lg mb-6">
-                <h4 className="font-medium text-blue-800 mb-2">How to relabel values:</h4>
-                <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
-                    <li>Select one or more columns to relabel</li>
-                    <li>For each column, you&apos;ll see its unique values</li>
-                    <li>Enter new labels (comma-separated) in the same order</li>
-                    <li>Click &apos;Apply Relabeling&apos; to update the values</li>
-                </ol>
-            </div>
-
-            <div className="space-y-6">
-                <div>
-                    <h3 className="font-medium mb-2">Select Columns:</h3>
-                    <div className="flex flex-wrap gap-2">
-                        {columns.map((column, index) => (
-                            <Button
-                                key={`relabel-${index}`}
-                                variant={selectedColumnsForRelabel.includes(column) ? "default" : "outline"}
-                                onClick={() => {
-                                    if (selectedColumnsForRelabel.includes(column)) {
-                                        setSelectedColumnsForRelabel(prev => prev.filter(c => c !== column));
-                                        setRelabelMappings(prev => {
-                                            const { [column]: _unused, ...rest } = prev;
-                                            console.log(_unused)
-                                            return rest;
-                                        });
-                                    } else {
-                                        const uniqueValues = getUniqueValuesForColumn(column);
-                                        const hasEmptyCells = uniqueValues.some(v => !v || v.trim() === '');
-                                        setSelectedColumnsForRelabel(prev => [...prev, column]);
-                                        setRelabelMappings(prev => ({
-                                            ...prev,
-                                            [column]: {
-                                                uniqueValues,
-                                                newLabels: '',
-                                                hasEmptyCells
-                                            }
-                                        }));
-                                    }
-                                }}
-                            >
-                                {column}
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-
-                {selectedColumnsForRelabel.map((column, id) => {
-                    const mapping = relabelMappings[column];
-                    const currentLabels = mapping?.newLabels?.split(',').map(l => l.trim()) || [];
-                    const isLabelCountMismatch = currentLabels.length > 0 &&
-                        currentLabels.length !== mapping?.uniqueValues.length;
-
-                    return (
-                        <div key={`${column}-${id}`} className="border p-4 rounded-lg">
-                            <h3 className="font-medium mb-4">{column}</h3>
-
-                            {mapping?.hasEmptyCells && (
-                                <div className="mb-4 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-                                    <div className="flex">
-                                        <div className="flex-shrink-0">
-                                            <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                            </svg>
-                                        </div>
-                                        <div className="ml-3">
-                                            <p className="text-sm text-yellow-700">
-                                                This column contains empty cells. They will be included in the relabeling process.
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                        Current Unique Values:
-                                    </label>
-                                    <div className="bg-gray-50 p-2 rounded">
-                                        {mapping?.uniqueValues.join(', ')}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium mb-2">
-                                        New Labels (comma-separated):
-                                    </label>
-                                    <Input
-                                        placeholder="Enter new labels (e.g., 0, 0, 1, 2, 0, 2, 2)"
-                                        value={mapping?.newLabels || ''}
-                                        className={isLabelCountMismatch ? 'border-red-500' : ''}
-                                        onChange={(e) => setRelabelMappings(prev => ({
-                                            ...prev,
-                                            [column]: {
-                                                ...prev[column],
-                                                newLabels: e.target.value
-                                            }
-                                        }))}
-                                    />
-                                    <div className="mt-1 text-sm">
-                                        {isLabelCountMismatch ? (
-                                            <motion.div
-                                                initial={{ opacity: 0, y: -10 }}
-                                                animate={{ opacity: 1, y: 0 }}
-                                                className="text-red-500 flex items-center gap-1"
-                                            >
-                                                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                                </svg>
-                                                Please enter exactly {mapping?.uniqueValues.length} labels (currently have {currentLabels.length})
-                                            </motion.div>
-                                        ) : (
-                                            <span className="text-gray-500">
-                                                Enter {mapping?.uniqueValues.length} comma-separated values
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-
-                {selectedColumnsForRelabel.length > 0 && (
-                    <Button
-                        className="w-full"
-                        onClick={handleRelabelUpdate}
-                        disabled={Object.values(relabelMappings).some(mapping => {
-                            const labelCount = mapping.newLabels.split(',').filter(l => l.trim()).length;
-                            return labelCount !== mapping.uniqueValues.length;
-                        })}
-                    >
-                        Apply Relabeling
-                    </Button>
-                )}
-            </div>
-        </motion.div>
-    </motion.div>
-)}
+             
                 {isColumnOperationsOpen && (
                     <motion.div className="fixed inset-0 z-50 flex items-center justify-center">
                         <motion.div
                             className="fixed inset-0 bg-black/30 backdrop-blur-sm"
                             onClick={() => setIsColumnOperationsOpen(false)}
                         />
-                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full">
+                        <motion.div className="relative bg-white rounded-lg shadow-xl p-6 m-4 max-w-2xl w-full max-h-[90vh] h-[90vh] overflow-y-auto">
                             <h2 className="text-xl font-semibold mb-4">Column Operations</h2>
 
-                            <div className="space-y-6">
-                                <div>
-                                    <h3 className="font-medium mb-2">Select Columns to Transform:</h3>
-                                    <div className="flex flex-wrap gap-2">
-                                        {columns.map((column, id) => (
+                            {Object.keys(operationSettings.multiColumn.prefactors).length === 0 ? (
+                                <>
+                                    <div className="bg-blue-50 p-4 rounded-lg mb-6">
+                                        <h4 className="font-medium text-blue-800 mb-2">How to perform operations:</h4>
+                                        <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
+                                            <li>Select columns you want to perform operations on</li>
+                                            <li>Choose single column operation for one column</li>
+                                            <li>Choose multi-column operation for combining columns</li>
+                                            <li>Apply the transformation to your data</li>
+                                        </ol>
+                                    </div>
+
+                                    <div>
+                                        <h3 className="font-medium mb-2">Select Columns:</h3>
+                                        <Input
+                                            type="text"
+                                            placeholder="Search columns..."
+                                            onChange={(e) => setSearchTerm(e.target.value)}
+                                            className="mb-2"
+                                        />
+                                        <div className="flex gap-2 mb-2">
                                             <Button
-                                                key={id}
-                                                variant={selectedColumnsForOperations.includes(column) ? "default" : "outline"}
+                                                variant="outline"
+                                                className="text-xs"
+                                                onClick={() => setSelectedColumnsForOperations(columns)}
+                                            >
+                                                Select All
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                className="text-xs"
+                                                onClick={() => setSelectedColumnsForOperations([])}
+                                            >
+                                                Clear All
+                                            </Button>
+                                        </div>
+                                        <ScrollArea className="h-[300px] border rounded-md p-2">
+                                            {columns
+                                                .filter(col => col.toLowerCase().includes(searchTerm.toLowerCase()))
+                                                .map((column, index) => (
+                                                    <div
+                                                        key={index}
+                                                        className={`
+                                                            flex items-center justify-between p-2 rounded
+                                                            cursor-pointer
+                                                            ${selectedColumnsForOperations.includes(column) ? 'bg-blue-50' : 'hover:bg-gray-100'}
+                                                        `}
+                                                        onClick={() => {
+                                                            setSelectedColumnsForOperations(prev =>
+                                                                prev.includes(column)
+                                                                    ? prev.filter(c => c !== column)
+                                                                    : [...prev, column]
+                                                            );
+                                                        }}
+                                                    >
+                                                        <div className="flex items-center space-x-2">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedColumnsForOperations.includes(column)}
+                                                                onChange={() => {}}
+                                                                className="rounded border-gray-300"
+                                                            />
+                                                            <span>{column}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </ScrollArea>
+
+                                        {selectedColumnsForOperations.length > 0 && (
+                                            <Button
+                                                className="w-full mt-4"
                                                 onClick={() => {
-                                                    setSelectedColumnsForOperations(prev => {
-                                                        const newColumns = prev.includes(column)
-                                                            ? prev.filter(c => c !== column)
-                                                            : [...prev, column];
-
-                                                        // Initialize operations array when columns change
-                                                        setOperationSettings(prevSettings => ({
-                                                            ...prevSettings,
-                                                            multiColumn: {
-                                                                ...prevSettings.multiColumn,
-                                                                operations: newColumns.length > 1 
-                                                                    ? new Array(newColumns.length - 1).fill('+')
-                                                                    : []
-                                                            }
-                                                        }));
-
-                                                        return newColumns;
+                                                    const initialPrefactors: Record<string, number> = {};
+                                                    const initialOperations: string[] = [];
+                                                    selectedColumnsForOperations.forEach((column, index) => {
+                                                        initialPrefactors[column] = 1;
+                                                        if (index < selectedColumnsForOperations.length - 1) {
+                                                            initialOperations.push('+');
+                                                        }
                                                     });
+                                                    setOperationSettings(prev => ({
+                                                        ...prev,
+                                                        multiColumn: {
+                                                            prefactors: initialPrefactors,
+                                                            operations: initialOperations
+                                                        }
+                                                    }));
                                                 }}
                                             >
-                                                {column}
+                                                Configure Operations ({selectedColumnsForOperations.length} columns)
                                             </Button>
-                                        ))}
+                                        )}
                                     </div>
-                                </div>
-
-                                {selectedColumnsForOperations.length === 1 && (
+                                </>
+                            ) : (
+                                // Your existing operation settings UI here
+                                <div className="space-y-6">
+                                    <Button
+                                        variant="outline"
+                                        onClick={() => setOperationSettings(prev => ({
+                                            ...prev,
+                                            multiColumn: { prefactors: {}, operations: [] }
+                                        }))}
+                                        className="mb-4"
+                                    >
+                                        ← Back to Column Selection
+                                        </Button>
+                                        {selectedColumnsForOperations.length === 1 && (
                                     <div className="space-y-4 border-t pt-4">
                                         <h3 className="font-medium">Single Column Operation</h3>
                                         <div className="bg-blue-50 p-4 rounded-lg mb-4">
@@ -1140,7 +1608,9 @@ const applyNaNRemoval = () => {
                                         <Button className="w-full" onClick={applyMultiColumnOperation}>Apply Operations</Button>
                                     </div>
                                 )}
-                            </div>
+                          
+                                </div>
+                            )}
                         </motion.div>
                     </motion.div>
                 )}
