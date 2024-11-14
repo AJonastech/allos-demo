@@ -604,9 +604,9 @@ const DataAnalyticsPage = () => {
                                         <h4 className="font-medium text-blue-800 mb-2">How to use:</h4>
                                         <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
                                             <li>First, select one or more columns you want to clean</li>
-                                            <li>Click "Show Unique Values" to see all values in selected columns</li>
+                                            <li>Click &apos;Show Unique Values&apos; to see all values in selected columns</li>
                                             <li>Check the boxes next to values you want to remove</li>
-                                            <li>Click "Apply Removal" to remove rows containing selected values</li>
+                                            <li>Click &apos;Apply Removal&apos; to remove rows containing selected values</li>
                                         </ol>
                                     </div>
 
@@ -986,7 +986,7 @@ const DataAnalyticsPage = () => {
                                         <h4 className="font-medium text-blue-800 mb-2">How to discretize:</h4>
                                         <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
                                             <li>Select continuous columns you want to discretize</li>
-                                            <li>Click "Configure Binning" to set up discretization for each column</li>
+                                            <li>Click &apos;Configure Binning&apos; to set up discretization for each column</li>
                                             <li>Choose binning method and parameters for each selected column</li>
                                             <li>Apply the transformation to your data</li>
                                         </ol>
@@ -1194,7 +1194,7 @@ const DataAnalyticsPage = () => {
                                         <h4 className="font-medium text-blue-800 mb-2">How to relabel:</h4>
                                         <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
                                             <li>Select columns you want to relabel values for</li>
-                                            <li>Click "Configure Relabeling" to set up new labels</li>
+                                            <li>Click &apos;Configure Relabeling&apos; to set up new labels</li>
                                             <li>For each column, specify new labels for existing values</li>
                                             <li>Apply the changes to update your data</li>
                                         </ol>
