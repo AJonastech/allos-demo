@@ -290,7 +290,7 @@ const newColumnName = selectedColumnsForOperations.map((col, id)=>{
 const operation =operations[id-1]
 const prefactor = prefactors[col] || 1
 
-return `${id >0 ? prefactor :""}${operation}${col}`
+return `${id >0 ? operation :""}${prefactor}${col}`
 }).join(" ")
 
 const newColumns =[...columns, newColumnName]
