@@ -286,6 +286,14 @@ const DataAnalyticsPage = () => {
         const columnIndices = selectedColumnsForOperations.map(col => columns.indexOf(col));
         const { prefactors, operations } = operationSettings.multiColumn;
 
+const newColumnName = selectedColumnsForOperations.map((col, id)=>{
+const operation =operations[id-1]
+const prefactor = prefactors[col] || 1
+
+return `${id >0 ? prefactor :""}${operation}${col}`
+}).join(" ")
+
+const newColumns =[...columns, newColumnName]
         const newData = data.map(row => {
             let result = parseFloat(row[columnIndices[0]]) * (prefactors[selectedColumnsForOperations[0]] || 1);
 
@@ -308,14 +316,14 @@ const DataAnalyticsPage = () => {
                 }
             }
 
-            return [...row.slice(0, columnIndices[0]),
-            isNaN(result) ? 'NaN' : result.toString(),
-            ...row.slice(columnIndices[0] + 1)];
+            return [...row,  isNaN(result) ? "NaN" :result.toString()]
         });
 
-        setData(newData);
+        setData(newData);  
+        setColumns(newColumns)
         setIsColumnOperationsOpen(false);
     };
+    
 
     const getUniqueValuesForColumn = (columnName: string) => {
         const columnIndex = columns.indexOf(columnName);
@@ -1110,6 +1118,7 @@ const DataAnalyticsPage = () => {
                                                     </Select>
                                                 </div>
 
+
                                                 {binSettings[column]?.type === 'size' && (
                                                     <Input
                                                         type="number"
@@ -1138,9 +1147,7 @@ const DataAnalyticsPage = () => {
                                                     <div>
                                                         <Input
                                                             placeholder="e.g., 0,10,20,30,40"
-                                                            value={Array.isArray(binSettings[column].value) 
-                                                                ? binSettings[column].value.join(',') 
-                                                                : binSettings[column].value?.toString() || ''}
+                                                         
                                                             onChange={(e) => setBinSettings(prev => ({
                                                                 ...prev,
                                                                 [column]: {
